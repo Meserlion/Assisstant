@@ -147,6 +147,23 @@ def stream_answer_query(query: str, context_notes: list[dict], history: list[dic
             yield text
 
 
+def rewrite_note(text: str, instruction: str) -> str:
+    """Rewrite a note according to a user instruction (e.g. 'turn into a bullet list')."""
+    response = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1024,
+        messages=[{
+            "role": "user",
+            "content": (
+                f"Rewrite the following note according to this instruction: {instruction}\n\n"
+                f"Note:\n{text}\n\n"
+                "Return only the rewritten note, nothing else."
+            )
+        }]
+    )
+    return response.content[0].text.strip()
+
+
 def cluster_notes(notes: list[dict]) -> dict:
     """Group notes by similarity and return a list of groups with consolidated summaries, and identify trash notes."""
     if not notes:

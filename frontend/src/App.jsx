@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { hasApiKey, captureNote, createTextNote, listNotes, deleteNote } from './api/client'
+import { hasApiKey, captureNote, createTextNote, listNotes, deleteNote, transcribeAudio } from './api/client'
 import { useRecorder } from './hooks/useRecorder'
 import { ApiKeySetup } from './components/ApiKeySetup'
 import { NoteCard } from './components/NoteCard'
@@ -24,6 +24,7 @@ export default function App() {
   const [textInput, setTextInput] = useState('')
   const [error, setError] = useState(null)
   const { recording, start, stop } = useRecorder()
+  const { recording: textRecording, start: textStart, stop: textStop } = useRecorder()
 
   const fetchNotes = useCallback(async () => {
     setLoading(true)
@@ -186,6 +187,25 @@ export default function App() {
                       onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { handleTextSubmit(e) } }}
                       disabled={capturing}
                       rows={2}
+                    />
+                    <VoiceButton
+                      recording={textRecording}
+                      onStart={textStart}
+                      onStop={async () => {
+                        setCapturing(true)
+                        setError(null)
+                        try {
+                          const blob = await textStop()
+                          const res = await transcribeAudio(blob)
+                          if (res.text) setTextInput((prev) => prev ? prev + ' ' + res.text : res.text)
+                        } catch (e) {
+                          setError(e.message)
+                        } finally {
+                          setCapturing(false)
+                        }
+                      }}
+                      label="Add by voice"
+                      disabled={capturing}
                     />
                     <button type="submit" className="accent-btn" disabled={capturing || !textInput.trim()}>Save</button>
                   </form>

@@ -185,6 +185,19 @@ def update_note(note_id: str, req: NoteUpdateRequest):
     return NoteResponse(id=note_id, created_at=row["created_at"], raw_text=req.text, tags=tags, summary=summary)
 
 
+class RewriteRequest(BaseModel):
+    text: str
+    instruction: str
+
+
+@router.post("/rewrite", dependencies=[Depends(verify_key)])
+def rewrite_note(req: RewriteRequest):
+    if not req.text.strip() or not req.instruction.strip():
+        raise HTTPException(status_code=400, detail="text and instruction are required")
+    rewritten = claude_service.rewrite_note(req.text.strip(), req.instruction.strip())
+    return {"rewritten": rewritten}
+
+
 @router.post("/transcribe", dependencies=[Depends(verify_key)])
 async def transcribe_audio(audio: UploadFile = File(...)):
     suffix = os.path.splitext(audio.filename or "audio.webm")[1] or ".webm"

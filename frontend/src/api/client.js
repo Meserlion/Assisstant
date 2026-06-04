@@ -86,6 +86,14 @@ export async function createTextNote(text) {
   })
 }
 
+export async function rewriteNote(text, instruction) {
+  return request('/notes/rewrite', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, instruction }),
+  })
+}
+
 export async function transcribeAudio(audioBlob) {
   const form = new FormData()
   form.append('audio', audioBlob, 'edit.webm')
