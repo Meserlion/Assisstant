@@ -11,6 +11,11 @@ def get_subscriptions() -> list[dict]:
     return [json.loads(r["subscription_json"]) for r in rows]
 
 
+def _get_private_key() -> str:
+    key = settings.vapid_private_key
+    return key.replace("\\n", "\n")
+
+
 def send_push(title: str, body: str):
     subs = get_subscriptions()
     if not subs or not settings.vapid_private_key:
@@ -21,7 +26,7 @@ def send_push(title: str, body: str):
             webpush(
                 subscription_info=sub,
                 data=payload,
-                vapid_private_key=settings.vapid_private_key,
+                vapid_private_key=_get_private_key(),
                 vapid_claims={"sub": f"mailto:{settings.vapid_email}"},
             )
         except WebPushException:
