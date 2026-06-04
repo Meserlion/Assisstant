@@ -74,6 +74,18 @@ export async function updateNote(id, text) {
   })
 }
 
+export async function createTextNote(text) {
+  return request('/notes/text', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text,
+      client_timezone: getClientTimezone(),
+      client_local_time: getLocalIsoTime(),
+    }),
+  })
+}
+
 export async function transcribeAudio(audioBlob) {
   const form = new FormData()
   form.append('audio', audioBlob, 'edit.webm')

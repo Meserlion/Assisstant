@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { createReminderFromText } from '../api/calendarClient'
 
-export function NoteCard({ note, onDelete, onEdit, onTagClick, activeTag }) {
+export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTag }) {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
@@ -35,12 +35,19 @@ export function NoteCard({ note, onDelete, onEdit, onTagClick, activeTag }) {
           >
             {loading ? '⏳' : '🔔'}
           </button>
-          <button 
-            className="edit-btn" 
-            onClick={onEdit} 
+          <button
+            className="edit-btn"
+            onClick={onEdit}
             title="Edit note"
           >
             ✏️
+          </button>
+          <button
+            className="split-btn"
+            onClick={onSplit}
+            title="Split note into two"
+          >
+            ✂️
           </button>
           <button className="delete-btn" onClick={() => onDelete(note.id)} aria-label="Delete note">×</button>
         </div>

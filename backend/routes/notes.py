@@ -48,23 +48,8 @@ class QueryResponse(BaseModel):
     sources: list[NoteResponse]
 
 
-@router.post("/capture", response_model=NoteResponse, dependencies=[Depends(verify_key)])
-async def capture_note(
-    audio: UploadFile = File(...),
-    client_timezone: str = Form(None),
-    client_local_time: str = Form(None)
-):
-    suffix = os.path.splitext(audio.filename or "audio.webm")[1] or ".webm"
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        async with aiofiles.open(tmp.name, "wb") as f:
-            await f.write(await audio.read())
-        tmp_path = tmp.name
-
-    try:
-        text = whisper_service.transcribe(tmp_path)
-    finally:
-        os.unlink(tmp_path)
-
+def _save_note_from_text(text: str, client_timezone: str = None, client_local_time: str = None) -> NoteResponse:
+    """Shared helper: analyse text, persist to SQLite + Chroma, auto-create reminder if needed."""
     analysis = claude_service.tag_note(text, client_timezone, client_local_time)
     tags = analysis["tags"]
     summary = analysis["summary"]
@@ -81,7 +66,6 @@ async def capture_note(
 
     chroma_service.add_note(note_id, text, {"created_at": created_at, "tags": json.dumps(tags), "summary": summary})
 
-    # If this note indicates a reminder scheduling request, create the reminder record
     if analysis["is_reminder"] and analysis["reminder_details"]:
         rem_details = analysis["reminder_details"]
         title = rem_details.get("title") or text[:80]
@@ -95,8 +79,6 @@ async def capture_note(
             )
             db.commit()
             db.close()
-
-            # Sync reminder to Google Calendar if connected
             from services import google_calendar
             from datetime import timedelta
             if google_calendar.is_connected():
@@ -112,6 +94,37 @@ async def capture_note(
                     print(f"Failed to sync auto-reminder to Google Calendar: {e}")
 
     return NoteResponse(id=note_id, created_at=created_at, raw_text=text, tags=tags, summary=summary)
+
+
+@router.post("/capture", response_model=NoteResponse, dependencies=[Depends(verify_key)])
+async def capture_note(
+    audio: UploadFile = File(...),
+    client_timezone: str = Form(None),
+    client_local_time: str = Form(None)
+):
+    suffix = os.path.splitext(audio.filename or "audio.webm")[1] or ".webm"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        async with aiofiles.open(tmp.name, "wb") as f:
+            await f.write(await audio.read())
+        tmp_path = tmp.name
+    try:
+        text = whisper_service.transcribe(tmp_path)
+    finally:
+        os.unlink(tmp_path)
+    return _save_note_from_text(text, client_timezone, client_local_time)
+
+
+class TextNoteRequest(BaseModel):
+    text: str
+    client_timezone: str = None
+    client_local_time: str = None
+
+
+@router.post("/text", response_model=NoteResponse, dependencies=[Depends(verify_key)])
+def create_text_note(req: TextNoteRequest):
+    if not req.text.strip():
+        raise HTTPException(status_code=400, detail="Note text cannot be empty")
+    return _save_note_from_text(req.text.strip(), req.client_timezone, req.client_local_time)
 
 
 @router.get("/", response_model=list[NoteResponse], dependencies=[Depends(verify_key)])

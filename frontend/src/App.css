@@ -413,6 +413,90 @@ main {
   min-height: 36px;
 }
 
+.capture-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  width: 100%;
+}
+
+.mode-toggle-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+  width: 42px;
+  height: 42px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.mode-toggle-btn:hover, .mode-toggle-btn.active {
+  border-color: rgba(99, 102, 241, 0.5);
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.text-capture-form {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  align-items: flex-end;
+}
+
+.text-capture-form textarea {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-primary);
+  font-size: 1rem;
+  padding: 10px 14px;
+  font-family: inherit;
+  resize: none;
+}
+
+.text-capture-form textarea:focus {
+  outline: none;
+  border-color: rgba(99, 102, 241, 0.5);
+}
+
+.split-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.split-form textarea {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  padding: 10px 14px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.split-form textarea:focus {
+  outline: none;
+  border-color: rgba(99, 102, 241, 0.5);
+}
+
+.split-divider {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.05em;
+}
+
+.modal-hint {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin: -4px 0 12px;
+}
+
 .export-btn {
   background: none;
   border: 1px solid rgba(255, 255, 255, 0.12);

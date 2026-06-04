@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { hasApiKey, captureNote, listNotes, deleteNote } from './api/client'
+import { hasApiKey, captureNote, createTextNote, listNotes, deleteNote } from './api/client'
 import { useRecorder } from './hooks/useRecorder'
 import { ApiKeySetup } from './components/ApiKeySetup'
 import { NoteCard } from './components/NoteCard'
@@ -8,6 +8,7 @@ import { CalendarTab } from './components/CalendarTab'
 import { VoiceButton } from './components/VoiceButton'
 import { ConsolidateTab } from './components/ConsolidateTab'
 import { EditNoteModal } from './components/EditNoteModal'
+import { SplitNoteModal } from './components/SplitNoteModal'
 import './App.css'
 
 export default function App() {
@@ -17,7 +18,10 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [capturing, setCapturing] = useState(false)
   const [editingNote, setEditingNote] = useState(null)
+  const [splittingNote, setSplittingNote] = useState(null)
   const [activeTag, setActiveTag] = useState(null)
+  const [textMode, setTextMode] = useState(false)
+  const [textInput, setTextInput] = useState('')
   const [error, setError] = useState(null)
   const { recording, start, stop } = useRecorder()
 
@@ -60,6 +64,22 @@ export default function App() {
       setNotes((prev) => prev.filter((n) => n.id !== id))
     } catch (e) {
       setError(e.message)
+    }
+  }
+
+  async function handleTextSubmit(e) {
+    e.preventDefault()
+    if (!textInput.trim() || capturing) return
+    setCapturing(true)
+    setError(null)
+    try {
+      const note = await createTextNote(textInput.trim())
+      setNotes((prev) => [note, ...prev])
+      setTextInput('')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setCapturing(false)
     }
   }
 
@@ -136,6 +156,7 @@ export default function App() {
                     note={note}
                     onDelete={handleDelete}
                     onEdit={() => setEditingNote(note)}
+                    onSplit={() => setSplittingNote(note)}
                     onTagClick={(tag) => setActiveTag(tag === activeTag ? null : tag)}
                     activeTag={activeTag}
                   />
@@ -148,13 +169,36 @@ export default function App() {
             <div className="bottom-bar">
               {capturing && <p className="status">Saving note…</p>}
               {error && <p className="error">{error}</p>}
-              <VoiceButton
-                recording={recording}
-                onStart={start}
-                onStop={handleStop}
-                label="Hold to record note"
-                disabled={capturing}
-              />
+              <div className="capture-row">
+                <button
+                  className={`mode-toggle-btn ${textMode ? 'active' : ''}`}
+                  onClick={() => setTextMode((m) => !m)}
+                  title={textMode ? 'Switch to voice' : 'Switch to text'}
+                >
+                  {textMode ? '🎙' : '⌨️'}
+                </button>
+                {textMode ? (
+                  <form onSubmit={handleTextSubmit} className="text-capture-form">
+                    <textarea
+                      placeholder="Type a note and press Enter…"
+                      value={textInput}
+                      onChange={(e) => setTextInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { handleTextSubmit(e) } }}
+                      disabled={capturing}
+                      rows={2}
+                    />
+                    <button type="submit" className="accent-btn" disabled={capturing || !textInput.trim()}>Save</button>
+                  </form>
+                ) : (
+                  <VoiceButton
+                    recording={recording}
+                    onStart={start}
+                    onStop={handleStop}
+                    label="Hold to record note"
+                    disabled={capturing}
+                  />
+                )}
+              </div>
             </div>
           </>
         )}
@@ -192,6 +236,17 @@ export default function App() {
             </form>
           </div>
         </div>
+      )}
+
+      {splittingNote && (
+        <SplitNoteModal
+          note={splittingNote}
+          onClose={() => setSplittingNote(null)}
+          onSplit={(newNotes, deletedId) => {
+            setNotes((prev) => [...newNotes, ...prev.filter((n) => n.id !== deletedId)])
+            setSplittingNote(null)
+          }}
+        />
       )}
 
       {editingNote && (
