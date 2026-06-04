@@ -489,6 +489,13 @@ main {
   font-size: 1rem !important;
 }
 
+.ai-rewrite-row .voice-btn {
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  min-width: unset;
+  width: auto;
+}
+
 .split-form {
   display: flex;
   flex-direction: column;

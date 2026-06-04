@@ -10,6 +10,7 @@ export function EditNoteModal({ note, onClose, onSave }) {
   const [rewriting, setRewriting] = useState(false)
   const [error, setError] = useState(null)
   const { recording, start, stop } = useRecorder()
+  const { recording: instrRecording, start: instrStart, stop: instrStop } = useRecorder()
 
   async function handleSave(e) {
     if (e) e.preventDefault()
@@ -68,6 +69,25 @@ export function EditNoteModal({ note, onClose, onSave }) {
               value={instruction}
               onChange={(e) => setInstruction(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleRewrite(e) }}
+              disabled={busy}
+            />
+            <VoiceButton
+              recording={instrRecording}
+              onStart={instrStart}
+              onStop={async () => {
+                setRewriting(true)
+                setError(null)
+                try {
+                  const blob = await instrStop()
+                  const res = await transcribeAudio(blob)
+                  if (res.text) setInstruction(res.text)
+                } catch (e) {
+                  setError(e.message || 'Failed to transcribe')
+                } finally {
+                  setRewriting(false)
+                }
+              }}
+              label="🎙"
               disabled={busy}
             />
             <button
