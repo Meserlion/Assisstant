@@ -1337,4 +1337,58 @@ section:nth-of-type(3) .event-card::before {
   }
 }
 
+/* Note Card Reminder Button & Status Styling */
+.note-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.reminder-btn {
+  background: rgba(99, 102, 241, 0.05);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  color: rgba(129, 140, 248, 0.85);
+  font-size: 0.9rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 6px 10px;
+  border-radius: 8px;
+  transition: all 0.2s var(--ease);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.reminder-btn:hover:not(:disabled) {
+  background: var(--accent-grad);
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.reminder-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.card-status {
+  font-size: 0.82rem;
+  margin: 4px 0 0 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  animation: fadeIn 0.3s var(--ease);
+}
+
+.card-status.success {
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  color: #34d399;
+}
+
+.card-status.error {
+  background: rgba(244, 63, 94, 0.08);
+  border: 1px solid rgba(244, 63, 94, 0.2);
+  color: #fb7185;
+}
+
 
