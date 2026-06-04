@@ -4,6 +4,17 @@ function getKey() {
   return localStorage.getItem('api_key') || ''
 }
 
+function getErrorMessage(detail) {
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) {
+    return detail.map(d => `${d.loc ? d.loc.join('.') + ': ' : ''}${d.msg}`).join(', ')
+  }
+  if (detail && typeof detail === 'object') {
+    return detail.message || JSON.stringify(detail)
+  }
+  return String(detail)
+}
+
 async function request(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, {
     ...options,
@@ -14,7 +25,8 @@ async function request(path, options = {}) {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(err.detail || res.statusText)
+    const msg = err.detail ? getErrorMessage(err.detail) : res.statusText
+    throw new Error(msg)
   }
   return res.json()
 }

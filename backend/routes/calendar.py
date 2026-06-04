@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
+from typing import Optional
 from google_auth_oauthlib.flow import Flow
 
 from config import settings
@@ -25,9 +26,9 @@ def verify_key(key: str = Depends(api_key_header)):
 
 class ReminderRequest(BaseModel):
     text: str
-    selected_date: str = None  # Format: YYYY-MM-DD
-    client_timezone: str = None
-    client_local_time: str = None
+    selected_date: Optional[str] = None  # Format: YYYY-MM-DD
+    client_timezone: Optional[str] = None
+    client_local_time: Optional[str] = None
 
 
 class EventCreate(BaseModel):
