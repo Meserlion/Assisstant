@@ -17,6 +17,7 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [capturing, setCapturing] = useState(false)
   const [editingNote, setEditingNote] = useState(null)
+  const [activeTag, setActiveTag] = useState(null)
   const [error, setError] = useState(null)
   const { recording, start, stop } = useRecorder()
 
@@ -81,12 +82,28 @@ export default function App() {
           <>
             {loading && <p className="status">Loading…</p>}
 
+            {activeTag && (
+              <div className="tag-filter-banner">
+                <span>Filtered by: <strong>{activeTag}</strong></span>
+                <button className="clear-filter-btn" onClick={() => setActiveTag(null)}>✕ Clear</button>
+              </div>
+            )}
+
             <div className="notes-list">
-              {notes.map((note) => (
-                <NoteCard key={note.id} note={note} onDelete={handleDelete} onEdit={() => setEditingNote(note)} />
-              ))}
-              {!loading && notes.length === 0 && (
-                <p className="empty">No notes yet. Hold the button to record your first one.</p>
+              {notes
+                .filter((n) => !activeTag || n.tags.includes(activeTag))
+                .map((note) => (
+                  <NoteCard
+                    key={note.id}
+                    note={note}
+                    onDelete={handleDelete}
+                    onEdit={() => setEditingNote(note)}
+                    onTagClick={(tag) => setActiveTag(tag === activeTag ? null : tag)}
+                    activeTag={activeTag}
+                  />
+                ))}
+              {!loading && notes.filter((n) => !activeTag || n.tags.includes(activeTag)).length === 0 && (
+                <p className="empty">{activeTag ? `No notes tagged "${activeTag}".` : 'No notes yet. Hold the button to record your first one.'}</p>
               )}
             </div>
 

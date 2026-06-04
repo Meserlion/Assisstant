@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { createReminderFromText } from '../api/calendarClient'
 
-export function NoteCard({ note, onDelete, onEdit }) {
+export function NoteCard({ note, onDelete, onEdit, onTagClick, activeTag }) {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
@@ -49,7 +49,12 @@ export function NoteCard({ note, onDelete, onEdit }) {
       <p className="note-text">{note.raw_text}</p>
       <div className="note-tags">
         {note.tags.map((tag) => (
-          <span key={tag} className="tag">{tag}</span>
+          <span
+            key={tag}
+            className={`tag${tag === activeTag ? ' tag-active' : ''}`}
+            onClick={() => onTagClick?.(tag)}
+            style={{ cursor: onTagClick ? 'pointer' : 'default' }}
+          >{tag}</span>
         ))}
       </div>
       
