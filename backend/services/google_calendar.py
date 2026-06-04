@@ -71,6 +71,11 @@ def create_event(title: str, start_iso: str, end_iso: str, description: str = ""
     return event["id"]
 
 
+def delete_event(event_id: str):
+    service = get_service()
+    service.events().delete(calendarId="primary", eventId=event_id).execute()
+
+
 def store_credentials_from_code(code: str, client_id: str, client_secret: str, redirect_uri: str):
     from google_auth_oauthlib.flow import Flow
     flow = Flow.from_client_config(

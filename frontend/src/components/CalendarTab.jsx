@@ -3,7 +3,7 @@ import { useRecorder } from '../hooks/useRecorder'
 import {
   getCalendarStatus, startOAuth, getEvents,
   createReminderFromText, listReminders, deleteReminder,
-  getVapidKey, subscribePush,
+  getVapidKey, subscribePush, deleteEvent,
 } from '../api/calendarClient'
 import { VoiceButton } from './VoiceButton'
 
@@ -178,6 +178,17 @@ export function CalendarTab() {
     setReminders((prev) => prev.filter((r) => r.id !== id))
   }
 
+  async function handleDeleteEvent(id) {
+    if (window.confirm("Are you sure you want to delete this event from Google Calendar?")) {
+      try {
+        await deleteEvent(id)
+        setEvents((prev) => prev.filter((e) => e.id !== id))
+      } catch (e) {
+        setError(e.message)
+      }
+    }
+  }
+
   if (loading) return <p className="status">Loading…</p>
 
   return (
@@ -256,10 +267,13 @@ export function CalendarTab() {
                 <div className="schedule-items">
                   {events.filter((e) => isSameDay(new Date(e.start), selectedDate)).map((e) => (
                     <div key={e.id} className="schedule-item event-item">
-                      <span className="item-title">{e.title}</span>
-                      <span className="item-time">
-                        {new Date(e.start).toLocaleTimeString('default', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
+                      <div className="item-content">
+                        <span className="item-title">{e.title}</span>
+                        <span className="item-time">
+                          {new Date(e.start).toLocaleTimeString('default', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <button className="delete-btn" onClick={() => handleDeleteEvent(e.id)}>×</button>
                     </div>
                   ))}
                   {events.filter((e) => isSameDay(new Date(e.start), selectedDate)).length === 0 && (

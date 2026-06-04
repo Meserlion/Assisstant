@@ -209,6 +209,28 @@ def done_reminder(reminder_id: str):
     return {"status": "done"}
 
 
+@router.delete("/events/{event_id}", dependencies=[Depends(verify_key)])
+def delete_event(event_id: str):
+    if not google_calendar.is_connected():
+        raise HTTPException(status_code=400, detail="Google Calendar not connected")
+    try:
+        google_calendar.delete_event(event_id)
+        # Clean up any cached event note from local databases
+        note_id = f"calendar-{event_id}"
+        db = get_db()
+        db.execute("DELETE FROM notes WHERE id = ?", (note_id,))
+        db.commit()
+        db.close()
+        try:
+            from services import chroma_service
+            chroma_service.delete_note(note_id)
+        except Exception:
+            pass
+        return {"deleted": event_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 def _create_reminder(title: str, remind_at: str, event_id: str = None):
     reminder_id = str(uuid.uuid4())
     db = get_db()
