@@ -6,6 +6,7 @@ import { NoteCard } from './components/NoteCard'
 import { QueryPanel } from './components/QueryPanel'
 import { CalendarTab } from './components/CalendarTab'
 import { VoiceButton } from './components/VoiceButton'
+import { ConsolidateTab } from './components/ConsolidateTab'
 import './App.css'
 
 export default function App() {
@@ -30,7 +31,10 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (ready && tab === 'notes') fetchNotes()
+    if (ready && (tab === 'notes' || tab === 'consolidate')) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchNotes()
+    }
   }, [ready, tab, fetchNotes])
 
   async function handleStop() {
@@ -64,6 +68,7 @@ export default function App() {
         <h1>Assistant</h1>
         <nav>
           <button className={tab === 'notes' ? 'active' : ''} onClick={() => setTab('notes')}>Notes</button>
+          <button className={tab === 'consolidate' ? 'active' : ''} onClick={() => setTab('consolidate')}>Consolidate</button>
           <button className={tab === 'ask' ? 'active' : ''} onClick={() => setTab('ask')}>Ask</button>
           <button className={tab === 'calendar' ? 'active' : ''} onClick={() => setTab('calendar')}>Calendar</button>
         </nav>
@@ -72,16 +77,6 @@ export default function App() {
       <main>
         {tab === 'notes' && (
           <>
-            <VoiceButton
-              recording={recording}
-              onStart={start}
-              onStop={handleStop}
-              label="Hold to record note"
-              disabled={capturing}
-            />
-
-            {capturing && <p className="status">Saving note…</p>}
-            {error && <p className="error">{error}</p>}
             {loading && <p className="status">Loading…</p>}
 
             <div className="notes-list">
@@ -92,11 +87,24 @@ export default function App() {
                 <p className="empty">No notes yet. Hold the button to record your first one.</p>
               )}
             </div>
+
+            <div className="bottom-bar">
+              {capturing && <p className="status">Saving note…</p>}
+              {error && <p className="error">{error}</p>}
+              <VoiceButton
+                recording={recording}
+                onStart={start}
+                onStop={handleStop}
+                label="Hold to record note"
+                disabled={capturing}
+              />
+            </div>
           </>
         )}
 
         {tab === 'ask' && <QueryPanel />}
         {tab === 'calendar' && <CalendarTab />}
+        {tab === 'consolidate' && <ConsolidateTab notes={notes} onMergeSuccess={fetchNotes} />}
       </main>
     </div>
   )

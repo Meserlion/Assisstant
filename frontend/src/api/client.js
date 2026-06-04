@@ -33,17 +33,18 @@ export async function deleteNote(id) {
   return request(`/notes/${id}`, { method: 'DELETE' })
 }
 
-export async function queryNotes(text) {
+export async function queryNotes(text, history = []) {
   return request('/notes/query', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, history }),
   })
 }
 
-export async function queryNotesVoice(audioBlob) {
+export async function queryNotesVoice(audioBlob, history = []) {
   const form = new FormData()
   form.append('audio', audioBlob, 'query.webm')
+  form.append('history', JSON.stringify(history))
   return request('/notes/query/voice', { method: 'POST', body: form })
 }
 
@@ -53,4 +54,16 @@ export function setApiKey(key) {
 
 export function hasApiKey() {
   return Boolean(getKey())
+}
+
+export async function getNoteGroups() {
+  return request('/notes/groups')
+}
+
+export async function mergeNoteGroup(noteIds, topic, summary) {
+  return request('/notes/merge-group', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ note_ids: noteIds, topic, summary }),
+  })
 }

@@ -29,11 +29,11 @@ export async function getEvents() {
   return request('/calendar/events')
 }
 
-export async function createReminderFromText(text) {
+export async function createReminderFromText(text, selectedDate = null) {
   return request('/calendar/reminder/voice', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, selected_date: selectedDate }),
   })
 }
 

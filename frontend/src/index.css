@@ -5,8 +5,29 @@
 }
 
 body {
-  background: #0f172a;
-  color: #e2e8f0;
-  font-family: system-ui, 'Segoe UI', sans-serif;
+  background: #090d16;
+  color: #f1f5f9;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Custom Scrollbar for premium feel */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 99px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.4);
 }

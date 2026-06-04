@@ -5,7 +5,7 @@ import os
 from datetime import datetime, timezone
 
 import aiofiles
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 
@@ -32,9 +32,11 @@ class NoteResponse(BaseModel):
 
 class QueryRequest(BaseModel):
     text: str
+    history: list[dict] = []
 
 
 class QueryResponse(BaseModel):
+    query: str
     answer: str
     sources: list[NoteResponse]
 
@@ -73,7 +75,7 @@ async def capture_note(audio: UploadFile = File(...)):
 def list_notes(limit: int = 50, offset: int = 0):
     db = get_db()
     rows = db.execute(
-        "SELECT * FROM notes ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset)
+        "SELECT * FROM notes WHERE tags NOT LIKE '%\"calendar\"%' ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset)
     ).fetchall()
     db.close()
     return [
@@ -102,9 +104,11 @@ def delete_note(note_id: str):
 
 @router.post("/query", response_model=QueryResponse, dependencies=[Depends(verify_key)])
 def query_notes(req: QueryRequest):
-    matches = chroma_service.search_notes(req.text)
+    # Rewrite the search query for vector retrieval using history if present
+    search_query = claude_service.rewrite_query(req.text, req.history)
+    matches = chroma_service.search_notes(search_query)
     if not matches:
-        return QueryResponse(answer="I couldn't find any relevant notes.", sources=[])
+        return QueryResponse(query=req.text, answer="I couldn't find any relevant notes.", sources=[])
 
     ids = [m["id"] for m in matches]
     db = get_db()
@@ -124,12 +128,12 @@ def query_notes(req: QueryRequest):
         for m in matches if m["id"] in row_map
     ]
 
-    answer = claude_service.answer_query(req.text, [s.model_dump() for s in sources])
-    return QueryResponse(answer=answer, sources=sources)
+    answer = claude_service.answer_query(req.text, [s.model_dump() for s in sources], req.history)
+    return QueryResponse(query=req.text, answer=answer, sources=sources)
 
 
 @router.post("/query/voice", response_model=QueryResponse, dependencies=[Depends(verify_key)])
-async def query_notes_voice(audio: UploadFile = File(...)):
+async def query_notes_voice(audio: UploadFile = File(...), history: str = Form("[]")):
     suffix = os.path.splitext(audio.filename or "audio.webm")[1] or ".webm"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         async with aiofiles.open(tmp.name, "wb") as f:
@@ -141,4 +145,101 @@ async def query_notes_voice(audio: UploadFile = File(...)):
     finally:
         os.unlink(tmp_path)
 
-    return query_notes(QueryRequest(text=text))
+    try:
+        history_list = json.loads(history)
+    except Exception:
+        history_list = []
+
+    return query_notes(QueryRequest(text=text, history=history_list))
+
+
+class NoteGroupResponse(BaseModel):
+    topic: str
+    summary: str
+    note_ids: list[str]
+
+
+class MergeGroupRequest(BaseModel):
+    note_ids: list[str]
+    topic: str
+    summary: str
+
+
+@router.get("/groups", response_model=list[NoteGroupResponse], dependencies=[Depends(verify_key)])
+def list_note_groups():
+    db = get_db()
+    rows = db.execute("SELECT * FROM notes WHERE tags NOT LIKE '%\"calendar\"%'").fetchall()
+    db.close()
+    
+    notes_list = [
+        {
+            "id": r["id"],
+            "created_at": r["created_at"],
+            "raw_text": r["raw_text"],
+            "tags": json.loads(r["tags"]),
+            "summary": r["summary"],
+        }
+        for r in rows
+    ]
+    groups = claude_service.cluster_notes(notes_list)
+    return [
+        NoteGroupResponse(
+            topic=g["topic"],
+            summary=g["summary"],
+            note_ids=g["note_ids"]
+        )
+        for g in groups
+    ]
+
+
+@router.post("/merge-group", response_model=NoteResponse, dependencies=[Depends(verify_key)])
+def merge_note_group(req: MergeGroupRequest):
+    if len(req.note_ids) < 2:
+        raise HTTPException(status_code=400, detail="Must select at least two notes to merge")
+        
+    db = get_db()
+    placeholders = ",".join("?" * len(req.note_ids))
+    rows = db.execute(f"SELECT * FROM notes WHERE id IN ({placeholders})", req.note_ids).fetchall()
+    
+    if len(rows) < len(req.note_ids):
+        db.close()
+        raise HTTPException(status_code=400, detail="Some notes were not found")
+        
+    notes_list = [
+        {
+            "id": r["id"],
+            "created_at": r["created_at"],
+            "raw_text": r["raw_text"],
+            "tags": json.loads(r["tags"]),
+            "summary": r["summary"],
+        }
+        for r in rows
+    ]
+    
+    # Synthesize unified text
+    unified_text = claude_service.synthesize_merged_note(notes_list)
+    
+    # Generate tags/summary for unified text
+    tags, _ = claude_service.tag_note(unified_text)
+    
+    # Save the consolidated note
+    note_id = str(uuid.uuid4())
+    created_at = datetime.now(timezone.utc).isoformat()
+    
+    db.execute(
+        "INSERT INTO notes (id, created_at, raw_text, tags, summary) VALUES (?, ?, ?, ?, ?)",
+        (note_id, created_at, unified_text, json.dumps(tags), req.summary),
+    )
+    
+    # Delete the old notes
+    db.execute(f"DELETE FROM notes WHERE id IN ({placeholders})", req.note_ids)
+    db.commit()
+    db.close()
+    
+    # Update Vector Store
+    chroma_service.add_note(note_id, unified_text, {"created_at": created_at, "tags": json.dumps(tags), "summary": req.summary})
+    for old_id in req.note_ids:
+        chroma_service.delete_note(old_id)
+        
+    return NoteResponse(id=note_id, created_at=created_at, raw_text=unified_text, tags=tags, summary=req.summary)
+

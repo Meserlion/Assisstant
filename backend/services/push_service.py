@@ -16,11 +16,15 @@ def _get_private_key() -> str:
     return key.replace("\\n", "\n")
 
 
-def send_push(title: str, body: str):
+def send_push(title: str, body: str, reminder_id: str = None):
     subs = get_subscriptions()
     if not subs or not settings.vapid_private_key:
         return
-    payload = json.dumps({"title": title, "body": body})
+    payload_dict = {"title": title, "body": body}
+    if reminder_id:
+        payload_dict["reminder_id"] = reminder_id
+        payload_dict["api_key"] = settings.api_key
+    payload = json.dumps(payload_dict)
     for sub in subs:
         try:
             webpush(

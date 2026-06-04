@@ -25,6 +25,7 @@ def verify_key(key: str = Depends(api_key_header)):
 
 class ReminderRequest(BaseModel):
     text: str
+    selected_date: str = None  # Format: YYYY-MM-DD
 
 
 class EventCreate(BaseModel):
@@ -51,11 +52,21 @@ def oauth_start():
 
 
 @router.get("/oauth/callback")
-def oauth_callback(code: str):
-    google_calendar.store_credentials_from_code(
-        code, settings.google_client_id, settings.google_client_secret, settings.google_redirect_uri
-    )
-    return RedirectResponse(url="/?connected=1")
+def oauth_callback(code: str = None, error: str = None):
+    if error:
+        print(f"OAuth Callback Error from Google: {error}")
+        return RedirectResponse(url="/?error=" + error)
+    if not code:
+        print("OAuth Callback: No code parameter received")
+        return RedirectResponse(url="/?error=missing_code")
+    try:
+        google_calendar.store_credentials_from_code(
+            code, settings.google_client_id, settings.google_client_secret, settings.google_redirect_uri
+        )
+        return RedirectResponse(url="/?connected=1")
+    except Exception as e:
+        print(f"OAuth Callback exception during token exchange: {str(e)}")
+        return RedirectResponse(url="/?error=token_exchange_failed")
 
 
 @router.get("/status", dependencies=[Depends(verify_key)])
@@ -63,11 +74,52 @@ def calendar_status():
     return {"connected": google_calendar.is_connected()}
 
 
+def sync_calendar_events_to_notes(events: list[dict]):
+    import json
+    from database import get_db
+    from services import chroma_service
+    
+    db = get_db()
+    for event in events:
+        event_id = event["id"]
+        note_id = f"calendar-{event_id}"
+        title = event.get("title", "")
+        start = event.get("start", "")
+        desc = event.get("description", "") or ""
+        
+        raw_text = f"Google Calendar Event: {title}\nDate/Time: {start}\nDescription: {desc}"
+        summary = f"Calendar event: {title}"
+        tags = ["calendar"]
+        
+        row = db.execute("SELECT * FROM notes WHERE id = ?", (note_id,)).fetchone()
+        if not row:
+            db.execute(
+                "INSERT INTO notes (id, created_at, raw_text, tags, summary) VALUES (?, ?, ?, ?, ?)",
+                (note_id, start, raw_text, json.dumps(tags), summary),
+            )
+            chroma_service.add_note(note_id, raw_text, {"created_at": start, "tags": json.dumps(tags), "summary": summary})
+        else:
+            if row["raw_text"] != raw_text or row["summary"] != summary:
+                db.execute(
+                    "UPDATE notes SET raw_text = ?, summary = ? WHERE id = ?",
+                    (raw_text, summary, note_id),
+                )
+                chroma_service.delete_note(note_id)
+                chroma_service.add_note(note_id, raw_text, {"created_at": start, "tags": json.dumps(tags), "summary": summary})
+    db.commit()
+    db.close()
+
+
 @router.get("/events", dependencies=[Depends(verify_key)])
 def get_events():
     if not google_calendar.is_connected():
         raise HTTPException(status_code=400, detail="Google Calendar not connected")
-    return google_calendar.list_events()
+    events = google_calendar.list_events()
+    try:
+        sync_calendar_events_to_notes(events)
+    except Exception as e:
+        print(f"Error syncing calendar events to notes: {e}")
+    return events
 
 
 @router.post("/events", dependencies=[Depends(verify_key)])
@@ -80,7 +132,7 @@ def create_event(req: EventCreate):
 
 @router.post("/reminder/voice", dependencies=[Depends(verify_key)])
 async def create_reminder_from_text(req: ReminderRequest):
-    parsed = _parse_reminder(req.text)
+    parsed = _parse_reminder(req.text, req.selected_date)
     if not parsed:
         raise HTTPException(status_code=422, detail="Could not understand the reminder")
 
@@ -122,6 +174,38 @@ def delete_reminder(reminder_id: str):
     return {"deleted": reminder_id}
 
 
+@router.post("/reminders/{reminder_id}/snooze", dependencies=[Depends(verify_key)])
+def snooze_reminder(reminder_id: str):
+    db = get_db()
+    row = db.execute("SELECT * FROM reminders WHERE id = ?", (reminder_id,)).fetchone()
+    if not row:
+        db.close()
+        raise HTTPException(status_code=404, detail="Reminder not found")
+    
+    new_time = (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat()
+    db.execute(
+        "UPDATE reminders SET remind_at = ?, sent = 0 WHERE id = ?",
+        (new_time, reminder_id),
+    )
+    db.commit()
+    db.close()
+    return {"status": "snoozed", "remind_at": new_time}
+
+
+@router.post("/reminders/{reminder_id}/done", dependencies=[Depends(verify_key)])
+def done_reminder(reminder_id: str):
+    db = get_db()
+    row = db.execute("SELECT * FROM reminders WHERE id = ?", (reminder_id,)).fetchone()
+    if not row:
+        db.close()
+        raise HTTPException(status_code=404, detail="Reminder not found")
+    
+    db.execute("UPDATE reminders SET sent = 1 WHERE id = ?", (reminder_id,))
+    db.commit()
+    db.close()
+    return {"status": "done"}
+
+
 def _create_reminder(title: str, remind_at: str, event_id: str = None):
     reminder_id = str(uuid.uuid4())
     db = get_db()
@@ -133,15 +217,19 @@ def _create_reminder(title: str, remind_at: str, event_id: str = None):
     db.close()
 
 
-def _parse_reminder(text: str) -> dict | None:
+def _parse_reminder(text: str, selected_date: str = None) -> dict | None:
     now = datetime.now(timezone.utc).isoformat()
+    context = f"Current time (UTC): {now}\n"
+    if selected_date:
+        context += f"The user has selected the date: {selected_date} in the calendar. Any relative time expressions without a specific date (e.g. 'at 3pm', 'in the afternoon') should be scheduled on this selected date: {selected_date}.\n"
+        
     response = anthropic_client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=128,
         messages=[{
             "role": "user",
             "content": (
-                f"Current time (UTC): {now}\n"
+                f"{context}"
                 f"Parse this reminder request into JSON with 'title' and 'remind_at' (ISO 8601 UTC). "
                 f"Return only valid JSON, nothing else.\n\nRequest: {text}"
             )

@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useRecorder } from '../hooks/useRecorder'
-import { queryNotesVoice } from '../api/client'
 import {
   getCalendarStatus, startOAuth, getEvents,
   createReminderFromText, listReminders, deleteReminder,
   getVapidKey, subscribePush,
 } from '../api/calendarClient'
 import { VoiceButton } from './VoiceButton'
-import { captureNote } from '../api/client'
 
 export function CalendarTab() {
   const [connected, setConnected] = useState(false)
@@ -18,6 +16,12 @@ export function CalendarTab() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const [lastResult, setLastResult] = useState(null)
+  
+  // New visual calendar states
+  const [selectedDate, setSelectedDate] = useState(new Date())
+  const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [quickAddText, setQuickAddText] = useState('')
+  
   const { recording, start, stop } = useRecorder()
 
   useEffect(() => {
@@ -65,33 +69,101 @@ export function CalendarTab() {
     setNotifEnabled(true)
   }
 
+  const handlePrevMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))
+  }
+
+  const handleNextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))
+  }
+
+  const isSameDay = (d1, d2) => {
+    return d1.getFullYear() === d2.getFullYear() &&
+           d1.getMonth() === d2.getMonth() &&
+           d1.getDate() === d2.getDate();
+  }
+
+  const getDaysInMonth = (date) => {
+    const year = date.getFullYear()
+    const month = date.getMonth()
+    const firstDayIndex = new Date(year, month, 1).getDay() // 0 = Sun
+    const totalDays = new Date(year, month + 1, 0).getDate()
+    
+    const days = []
+    
+    // Fill previous month days
+    const prevMonthTotalDays = new Date(year, month, 0).getDate()
+    for (let i = firstDayIndex - 1; i >= 0; i--) {
+      days.push({
+        date: new Date(year, month - 1, prevMonthTotalDays - i),
+        isCurrentMonth: false,
+      })
+    }
+    
+    // Fill current month days
+    for (let i = 1; i <= totalDays; i++) {
+      days.push({
+        date: new Date(year, month, i),
+        isCurrentMonth: true,
+      })
+    }
+    
+    // Fill next month days
+    const remainingCells = 42 - days.length
+    for (let i = 1; i <= remainingCells; i++) {
+      days.push({
+        date: new Date(year, month + 1, i),
+        isCurrentMonth: false,
+      })
+    }
+    
+    return days
+  }
+
+  async function handleQuickAdd(e) {
+    if (e) e.preventDefault()
+    if (!quickAddText.trim()) return
+    setSaving(true)
+    setError(null)
+    setLastResult(null)
+    try {
+      const year = selectedDate.getFullYear()
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0')
+      const day = String(selectedDate.getDate()).padStart(2, '0')
+      const dateStr = `${year}-${month}-${day}`
+      
+      const reminder = await createReminderFromText(quickAddText.trim(), dateStr)
+      setLastResult(`Reminder set: "${reminder.title}" at ${new Date(reminder.remind_at).toLocaleString()}`)
+      setQuickAddText('')
+      await loadAll()
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function handleVoiceReminder() {
     setSaving(true)
     setError(null)
+    setLastResult(null)
     try {
       const blob = await stop()
-      // Transcribe via the notes voice endpoint to get text, then parse as reminder
-      const form = new FormData()
-      form.append('audio', blob, 'reminder.webm')
-      const res = await fetch('/api/notes/query/voice', {
-        method: 'POST',
-        headers: { 'X-API-Key': localStorage.getItem('api_key') || '' },
-        body: form,
-      })
-      // Actually we need the raw transcription — use a simpler approach:
-      // send audio to capture first to get text, then use that text for reminder
       const transcribeForm = new FormData()
       transcribeForm.append('audio', blob, 'reminder.webm')
-      // Re-use the query/voice endpoint which returns an answer; instead use a dedicated transcribe
-      // For simplicity: use the reminder/voice endpoint directly with the blob transcribed first
-      // We'll use the notes capture endpoint to get the transcribed text
       const captureRes = await fetch('/api/notes/capture', {
         method: 'POST',
         headers: { 'X-API-Key': localStorage.getItem('api_key') || '' },
-        body: (() => { const f = new FormData(); f.append('audio', blob, 'reminder.webm'); return f })(),
+        body: transcribeForm,
       })
       const note = await captureRes.json()
-      const reminder = await createReminderFromText(note.raw_text)
+      
+      const year = selectedDate.getFullYear()
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0')
+      const day = String(selectedDate.getDate()).padStart(2, '0')
+      const dateStr = `${year}-${month}-${day}`
+
+      const reminder = await createReminderFromText(note.raw_text, dateStr)
       setLastResult(`Reminder set: "${reminder.title}" at ${new Date(reminder.remind_at).toLocaleString()}`)
       await loadAll()
     } catch (e) {
@@ -124,50 +196,129 @@ export function CalendarTab() {
             </div>
           )}
 
-          <section>
-            <h2>Set a reminder</h2>
-            <VoiceButton
-              recording={recording}
-              onStart={start}
-              onStop={handleVoiceReminder}
-              label='Hold and say e.g. "Remind me to call John tomorrow at 3pm"'
-              disabled={saving}
-            />
-            {saving && <p className="status">Saving reminder…</p>}
-            {lastResult && <p className="status">{lastResult}</p>}
-            {error && <p className="error">{error}</p>}
-          </section>
+          {/* Month Navigation Header */}
+          <div className="calendar-header-nav">
+            <button className="nav-btn" onClick={handlePrevMonth}>&larr;</button>
+            <span className="month-title">
+              {currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
+            </span>
+            <button className="nav-btn" onClick={handleNextMonth}>&rarr;</button>
+          </div>
 
-          {reminders.length > 0 && (
-            <section>
-              <h2>Upcoming reminders</h2>
-              <div className="event-list">
-                {reminders.map((r) => (
-                  <div key={r.id} className="event-card">
-                    <div className="event-header">
-                      <span className="event-title">{r.title}</span>
+          {/* Weekday Labels Header */}
+          <div className="weekdays-grid">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+              <div key={d} className="weekday-label">{d}</div>
+            ))}
+          </div>
+
+          {/* Days Grid */}
+          <div className="calendar-grid">
+            {getDaysInMonth(currentMonth).map(({ date, isCurrentMonth }, i) => {
+              const isSelected = isSameDay(date, selectedDate)
+              const isToday = isSameDay(date, new Date())
+              
+              const dayEvents = events.filter((e) => isSameDay(new Date(e.start), date))
+              const dayReminders = reminders.filter((r) => isSameDay(new Date(r.remind_at), date))
+              
+              // Cap total dots at 3: prioritize events, then fill with reminders
+              const eventDotsCount = Math.min(dayEvents.length, 3)
+              const reminderDotsCount = Math.min(dayReminders.length, 3 - eventDotsCount)
+              
+              return (
+                <div
+                  key={i}
+                  className={`calendar-day ${isCurrentMonth ? '' : 'outside-month'} ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''}`}
+                  onClick={() => setSelectedDate(date)}
+                >
+                  <span className="day-number">{date.getDate()}</span>
+                  <div className="day-indicators">
+                    {dayEvents.slice(0, eventDotsCount).map((e) => (
+                      <span key={e.id} className="indicator event" title={e.title}></span>
+                    ))}
+                    {dayReminders.slice(0, reminderDotsCount).map((r) => (
+                      <span key={r.id} className="indicator reminder" title={r.title}></span>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Selected Date Schedule details view */}
+          <div className="selected-day-schedule">
+            <h3>Schedule for {selectedDate.toLocaleDateString('default', { weekday: 'long', month: 'short', day: 'numeric' })}</h3>
+            
+            <div className="schedule-lists">
+              {/* Events list */}
+              <div className="schedule-section">
+                <h4>📅 Calendar Events</h4>
+                <div className="schedule-items">
+                  {events.filter((e) => isSameDay(new Date(e.start), selectedDate)).map((e) => (
+                    <div key={e.id} className="schedule-item event-item">
+                      <span className="item-title">{e.title}</span>
+                      <span className="item-time">
+                        {new Date(e.start).toLocaleTimeString('default', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  ))}
+                  {events.filter((e) => isSameDay(new Date(e.start), selectedDate)).length === 0 && (
+                    <p className="no-items">No calendar events today.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Reminders list */}
+              <div className="schedule-section">
+                <h4>🔔 Reminders</h4>
+                <div className="schedule-items">
+                  {reminders.filter((r) => isSameDay(new Date(r.remind_at), selectedDate)).map((r) => (
+                    <div key={r.id} className="schedule-item reminder-item">
+                      <div className="item-content">
+                        <span className="item-title">{r.title}</span>
+                        <span className="item-time">
+                          {new Date(r.remind_at).toLocaleTimeString('default', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
                       <button className="delete-btn" onClick={() => handleDeleteReminder(r.id)}>×</button>
                     </div>
-                    <span className="event-time">{new Date(r.remind_at).toLocaleString()}</span>
-                  </div>
-                ))}
+                  ))}
+                  {reminders.filter((r) => isSameDay(new Date(r.remind_at), selectedDate)).length === 0 && (
+                    <p className="no-items">No reminders scheduled today.</p>
+                  )}
+                </div>
               </div>
-            </section>
-          )}
+            </div>
 
-          {events.length > 0 && (
-            <section>
-              <h2>Upcoming events</h2>
-              <div className="event-list">
-                {events.map((e) => (
-                  <div key={e.id} className="event-card">
-                    <span className="event-title">{e.title}</span>
-                    <span className="event-time">{new Date(e.start).toLocaleString()}</span>
-                  </div>
-                ))}
+            {/* Quick-Add voice & text inputs in bottom bar */}
+            <div className="bottom-bar">
+              {saving && <p className="status">Saving reminder…</p>}
+              {lastResult && <p className="status">{lastResult}</p>}
+              {error && <p className="error">{error}</p>}
+              
+              <div className="quick-add-container">
+                <form onSubmit={handleQuickAdd} className="quick-add-form">
+                  <input
+                    type="text"
+                    placeholder={`Add reminder for ${selectedDate.toLocaleDateString('default', { month: 'short', day: 'numeric' })}…`}
+                    value={quickAddText}
+                    onChange={(e) => setQuickAddText(e.target.value)}
+                    disabled={saving}
+                  />
+                  <button type="submit" disabled={saving || !quickAddText.trim()}>Add</button>
+                </form>
+                <div className="voice-mic-wrapper">
+                  <VoiceButton
+                    recording={recording}
+                    onStart={start}
+                    onStop={handleVoiceReminder}
+                    label="🎤"
+                    disabled={saving}
+                  />
+                </div>
               </div>
-            </section>
-          )}
+            </div>
+          </div>
         </>
       )}
     </div>
