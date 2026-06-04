@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRecorder } from '../hooks/useRecorder'
-import { queryNotes, queryNotesVoice } from '../api/client'
+import { queryNotesStream, queryNotesVoice } from '../api/client'
 import { VoiceButton } from './VoiceButton'
 
 export function QueryPanel() {
@@ -39,23 +39,37 @@ export function QueryPanel() {
     setError(null)
     setLoading(true)
 
-    // Add user message to history
     const updatedMessages = [...messages, { role: 'user', content: userText }]
     setMessages(updatedMessages)
 
     try {
-      const history = updatedMessages.slice(0, -1).map(m => ({
-        role: m.role,
-        content: m.content
-      }))
-      const res = await queryNotes(userText, history)
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: res.answer,
-        sources: res.sources
-      }])
+      const history = updatedMessages.slice(0, -1).map(m => ({ role: m.role, content: m.content }))
+
+      await queryNotesStream(
+        userText,
+        history,
+        (meta) => {
+          // First event: add the assistant message shell with sources
+          setMessages(prev => [...prev, { role: 'assistant', content: '', sources: meta.sources }])
+        },
+        (chunk) => {
+          // Subsequent events: append each chunk to the last message
+          setMessages(prev => {
+            const updated = [...prev]
+            const last = updated[updated.length - 1]
+            updated[updated.length - 1] = { ...last, content: last.content + chunk }
+            return updated
+          })
+        }
+      )
     } catch (e) {
       setError(e.message)
+      // Remove the empty assistant shell if streaming never started
+      setMessages(prev =>
+        prev[prev.length - 1]?.role === 'assistant' && prev[prev.length - 1]?.content === ''
+          ? prev.slice(0, -1)
+          : prev
+      )
     } finally {
       setLoading(false)
     }
@@ -83,7 +97,7 @@ export function QueryPanel() {
             </div>
           </div>
         ))}
-        {loading && (
+        {loading && messages[messages.length - 1]?.role !== 'assistant' && (
           <div className="chat-message assistant loading-bubble">
             <div className="chat-bubble">
               <div className="typing-indicator">

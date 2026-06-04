@@ -90,45 +90,51 @@ def rewrite_query(query: str, history: list[dict]) -> str:
         return query
 
 
-def answer_query(query: str, context_notes: list[dict], history: list[dict] = None, schedule_context: str = "") -> str:
-    """Answer a search query using retrieved notes as context."""
-    notes_text = "\n\n".join(
-        f"[{n['created_at']}] {n['raw_text']}" for n in context_notes
-    )
-    
-    system_prompt = (
-        "You are a personal assistant with access to the user's notes and upcoming calendar schedule. "
-        "Answer the query using only the provided notes and schedule. "
-        "Be concise and direct. If the notes and schedule don't contain relevant info, say so."
-    )
-    
-    cleaned_messages = []
+QUERY_SYSTEM_PROMPT = (
+    "You are a personal assistant with access to the user's notes and upcoming calendar schedule. "
+    "Answer the query using only the provided notes and schedule. "
+    "Be concise and direct. If the notes and schedule don't contain relevant info, say so."
+)
+
+
+def _build_query_messages(query: str, context_notes: list[dict], history: list[dict], schedule_context: str) -> list[dict]:
+    notes_text = "\n\n".join(f"[{n['created_at']}] {n['raw_text']}" for n in context_notes)
+    cleaned = []
     expected_role = "user"
     if history:
         for msg in history:
             if msg.get("role") == expected_role:
-                cleaned_messages.append({
-                    "role": msg["role"],
-                    "content": msg["content"]
-                })
+                cleaned.append({"role": msg["role"], "content": msg["content"]})
                 expected_role = "assistant" if expected_role == "user" else "user"
-                
-    if expected_role == "assistant" and cleaned_messages:
-        cleaned_messages.pop()
-        
-    user_content = f"Query: {query}\n\nNotes:\n{notes_text}\n{schedule_context}"
-    cleaned_messages.append({
-        "role": "user",
-        "content": user_content
-    })
-    
+    if expected_role == "assistant" and cleaned:
+        cleaned.pop()
+    cleaned.append({"role": "user", "content": f"Query: {query}\n\nNotes:\n{notes_text}\n{schedule_context}"})
+    return cleaned
+
+
+def answer_query(query: str, context_notes: list[dict], history: list[dict] = None, schedule_context: str = "") -> str:
+    """Answer a search query using retrieved notes as context."""
+    messages = _build_query_messages(query, context_notes, history or [], schedule_context)
     response = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1024,
-        system=system_prompt,
-        messages=cleaned_messages
+        system=QUERY_SYSTEM_PROMPT,
+        messages=messages,
     )
     return response.content[0].text.strip()
+
+
+def stream_answer_query(query: str, context_notes: list[dict], history: list[dict] = None, schedule_context: str = ""):
+    """Yield text chunks for streaming the answer."""
+    messages = _build_query_messages(query, context_notes, history or [], schedule_context)
+    with client.messages.stream(
+        model="claude-sonnet-4-6",
+        max_tokens=1024,
+        system=QUERY_SYSTEM_PROMPT,
+        messages=messages,
+    ) as stream:
+        for text in stream.text_stream:
+            yield text
 
 
 def cluster_notes(notes: list[dict]) -> dict:

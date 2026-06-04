@@ -88,6 +88,36 @@ export async function queryNotes(text, history = []) {
   })
 }
 
+export async function queryNotesStream(text, history = [], onMeta, onChunk) {
+  const res = await fetch(`${BASE}/notes/query/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-API-Key': getKey() },
+    body: JSON.stringify({ text, history }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }))
+    throw new Error(err.detail ? getErrorMessage(err.detail) : res.statusText)
+  }
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop()
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue
+      try {
+        const data = JSON.parse(line.slice(6))
+        if (data.type === 'meta') onMeta(data)
+        else if (data.type === 'text') onChunk(data.delta)
+      } catch (e) { if (e) { /* skip malformed SSE line */ } }
+    }
+  }
+}
+
 export async function queryNotesVoice(audioBlob, history = []) {
   const form = new FormData()
   form.append('audio', audioBlob, 'query.webm')

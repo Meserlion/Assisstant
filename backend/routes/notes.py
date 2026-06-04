@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 import aiofiles
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
+from fastapi.responses import StreamingResponse
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 
@@ -235,6 +236,55 @@ def query_notes(req: QueryRequest):
 
     answer = claude_service.answer_query(req.text, [s.model_dump() for s in sources], req.history, schedule_context)
     return QueryResponse(query=req.text, answer=answer, sources=sources)
+
+
+@router.post("/query/stream", dependencies=[Depends(verify_key)])
+def query_notes_stream(req: QueryRequest):
+    search_query = claude_service.rewrite_query(req.text, req.history)
+    matches = chroma_service.search_notes(search_query)
+
+    from datetime import datetime, timezone, timedelta
+    now_utc = datetime.now(timezone.utc)
+    limit_utc = (now_utc + timedelta(days=7)).isoformat()
+
+    db = get_db()
+    calendar_rows = db.execute(
+        "SELECT created_at, raw_text FROM notes WHERE id LIKE 'calendar-%' AND created_at >= ? AND created_at <= ? ORDER BY created_at ASC",
+        (now_utc.isoformat(), limit_utc)
+    ).fetchall()
+    schedule_context = ""
+    if calendar_rows:
+        schedule_context = "\nUpcoming Calendar Schedule (Next 7 Days):\n" + "\n".join(
+            f"- [{r['created_at']}] {r['raw_text']}" for r in calendar_rows
+        )
+
+    sources = []
+    if matches:
+        ids = [m["id"] for m in matches]
+        placeholders = ",".join("?" * len(ids))
+        rows = db.execute(f"SELECT * FROM notes WHERE id IN ({placeholders})", ids).fetchall()
+        row_map = {r["id"]: r for r in rows}
+        sources = [
+            NoteResponse(
+                id=m["id"],
+                created_at=m["created_at"],
+                raw_text=m["raw_text"],
+                tags=json.loads(row_map[m["id"]]["tags"]) if m["id"] in row_map else [],
+                summary=row_map[m["id"]]["summary"] if m["id"] in row_map else "",
+            )
+            for m in matches if m["id"] in row_map
+        ]
+    db.close()
+
+    sources_data = [s.model_dump() for s in sources]
+
+    def generate():
+        yield f"data: {json.dumps({'type': 'meta', 'query': req.text, 'sources': sources_data})}\n\n"
+        for chunk in claude_service.stream_answer_query(req.text, sources_data, req.history, schedule_context):
+            yield f"data: {json.dumps({'type': 'text', 'delta': chunk})}\n\n"
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 @router.post("/query/voice", response_model=QueryResponse, dependencies=[Depends(verify_key)])
