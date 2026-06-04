@@ -387,7 +387,7 @@ main {
   color: var(--text);
   padding: 14px 18px;
   font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 0.95rem;
+  font-size: 16px;
   transition: all var(--transition-speed) var(--ease);
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
 }
@@ -1155,7 +1155,7 @@ section:nth-of-type(3) .event-card::before {
   border-radius: 12px;
   color: var(--text);
   padding: 10px 14px;
-  font-size: 0.9rem;
+  font-size: 16px;
 }
 
 .quick-add-form input:focus {
@@ -1492,7 +1492,7 @@ section:nth-of-type(3) .event-card::before {
   padding: 14px;
   color: var(--text);
   font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 0.95rem;
+  font-size: 16px;
   line-height: 1.5;
   resize: vertical;
   transition: border-color 0.2s;
@@ -1627,6 +1627,18 @@ section:nth-of-type(3) .event-card::before {
 .chat-input-row button[type="submit"] {
   flex-shrink: 0;
   padding: 14px 20px;
+}
+
+/* Ensure inputs and textareas have at least 16px font-size on mobile to prevent browser auto-zoom on focus */
+@media screen and (max-width: 768px) {
+  input[type="text"],
+  input[type="password"],
+  input[type="search"],
+  input[type="email"],
+  input[type="tel"],
+  textarea {
+    font-size: 16px !important;
+  }
 }
 
 
