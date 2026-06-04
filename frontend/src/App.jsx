@@ -70,7 +70,7 @@ export default function App() {
         <h1>Assistant</h1>
         <nav>
           <button className={tab === 'notes' ? 'active' : ''} onClick={() => setTab('notes')}>Notes</button>
-          <button className={tab === 'consolidate' ? 'active' : ''} onClick={() => setTab('consolidate')}>Consolidate</button>
+          <button className={tab === 'consolidate' ? 'active' : ''} onClick={() => setTab('consolidate')}>Merge</button>
           <button className={tab === 'ask' ? 'active' : ''} onClick={() => setTab('ask')}>Ask</button>
           <button className={tab === 'calendar' ? 'active' : ''} onClick={() => setTab('calendar')}>Calendar</button>
         </nav>

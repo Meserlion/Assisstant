@@ -1641,4 +1641,29 @@ section:nth-of-type(3) .event-card::before {
   }
 }
 
+/* Header and navigation responsive styles for smaller mobile screens */
+@media screen and (max-width: 500px) {
+  header {
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 0;
+  }
+  header h1 {
+    justify-content: center;
+  }
+  nav {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    gap: 4px;
+  }
+  nav button {
+    flex: 1;
+    padding: 8px 4px;
+    font-size: 0.78rem;
+    text-align: center;
+  }
+}
+
 
