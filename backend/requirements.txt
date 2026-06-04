@@ -8,3 +8,7 @@ faster-whisper==1.1.0
 pydantic==2.10.3
 pydantic-settings==2.6.1
 aiofiles==24.1.0
+google-auth-oauthlib==1.2.1
+google-api-python-client==2.154.0
+pywebpush==2.0.0
+apscheduler==3.10.4

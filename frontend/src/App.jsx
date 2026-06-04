@@ -4,6 +4,7 @@ import { useRecorder } from './hooks/useRecorder'
 import { ApiKeySetup } from './components/ApiKeySetup'
 import { NoteCard } from './components/NoteCard'
 import { QueryPanel } from './components/QueryPanel'
+import { CalendarTab } from './components/CalendarTab'
 import { VoiceButton } from './components/VoiceButton'
 import './App.css'
 
@@ -64,6 +65,7 @@ export default function App() {
         <nav>
           <button className={tab === 'notes' ? 'active' : ''} onClick={() => setTab('notes')}>Notes</button>
           <button className={tab === 'ask' ? 'active' : ''} onClick={() => setTab('ask')}>Ask</button>
+          <button className={tab === 'calendar' ? 'active' : ''} onClick={() => setTab('calendar')}>Calendar</button>
         </nav>
       </header>
 
@@ -94,6 +96,7 @@ export default function App() {
         )}
 
         {tab === 'ask' && <QueryPanel />}
+        {tab === 'calendar' && <CalendarTab />}
       </main>
     </div>
   )

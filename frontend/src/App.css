@@ -339,3 +339,107 @@ details summary {
   text-align: center;
   padding: 32px 0;
 }
+
+/* Calendar tab */
+.calendar-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.calendar-tab h2 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 10px;
+}
+
+.connect-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 32px 0;
+  text-align: center;
+}
+
+.connect-box p {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.accent-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.accent-btn:hover {
+  background: var(--accent-hover);
+}
+
+.notif-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 0.85rem;
+}
+
+.notif-banner span {
+  color: var(--muted);
+}
+
+.notif-banner button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.event-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.event-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.event-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.event-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.event-time {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
