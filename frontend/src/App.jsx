@@ -63,6 +63,22 @@ export default function App() {
     }
   }
 
+  function handleExport() {
+    const lines = notes.map((n) => {
+      const date = new Date(n.created_at).toLocaleString()
+      const tags = n.tags.length ? `*Tags: ${n.tags.join(', ')}*` : ''
+      return [`## ${date}`, '', `**${n.summary}**`, '', n.raw_text, '', tags, '', '---', ''].join('\n')
+    })
+    const md = `# My Notes\n\nExported ${new Date().toLocaleString()}\n\n---\n\n` + lines.join('\n')
+    const blob = new Blob([md], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `notes-${new Date().toISOString().slice(0, 10)}.md`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   if (!ready) return <ApiKeySetup onDone={() => setReady(true)} />
 
   return (
@@ -82,12 +98,19 @@ export default function App() {
           <>
             {loading && <p className="status">Loading…</p>}
 
-            {activeTag && (
-              <div className="tag-filter-banner">
-                <span>Filtered by: <strong>{activeTag}</strong></span>
-                <button className="clear-filter-btn" onClick={() => setActiveTag(null)}>✕ Clear</button>
-              </div>
-            )}
+            <div className="notes-toolbar">
+              {activeTag ? (
+                <div className="tag-filter-banner">
+                  <span>Filtered by: <strong>{activeTag}</strong></span>
+                  <button className="clear-filter-btn" onClick={() => setActiveTag(null)}>✕ Clear</button>
+                </div>
+              ) : <div />}
+              {notes.length > 0 && (
+                <button className="export-btn" onClick={handleExport} title="Export all notes as Markdown">
+                  ↓ Export
+                </button>
+              )}
+            </div>
 
             <div className="notes-list">
               {notes
