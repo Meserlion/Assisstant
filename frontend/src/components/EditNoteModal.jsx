@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useRecorder } from '../hooks/useRecorder'
 import { updateNote, transcribeAudio, rewriteNote } from '../api/client'
-import { VoiceButton } from './VoiceButton'
 
 export function EditNoteModal({ note, onClose, onSave }) {
   const [text, setText] = useState(note.raw_text)
@@ -43,6 +42,34 @@ export function EditNoteModal({ note, onClose, onSave }) {
     }
   }
 
+  async function handleVoiceAppend() {
+    setRewriting(true)
+    setError(null)
+    try {
+      const blob = await stop()
+      const res = await transcribeAudio(blob)
+      if (res.text) setText((prev) => prev ? prev + ' ' + res.text : res.text)
+    } catch (e) {
+      setError(e.message || 'Failed to transcribe voice')
+    } finally {
+      setRewriting(false)
+    }
+  }
+
+  async function handleVoiceInstruction() {
+    setRewriting(true)
+    setError(null)
+    try {
+      const blob = await instrStop()
+      const res = await transcribeAudio(blob)
+      if (res.text) setInstruction(res.text)
+    } catch (e) {
+      setError(e.message || 'Failed to transcribe')
+    } finally {
+      setRewriting(false)
+    }
+  }
+
   const busy = saving || rewriting
 
   return (
@@ -62,34 +89,28 @@ export function EditNoteModal({ note, onClose, onSave }) {
             placeholder="Type your note content here..."
           />
 
+          {/* AI rewrite row */}
           <div className="ai-rewrite-row">
             <input
               type="text"
-              placeholder='Ask AI to edit… e.g. "turn into a bullet list"'
+              placeholder='Ask AI… e.g. "turn into a bullet list"'
               value={instruction}
               onChange={(e) => setInstruction(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleRewrite(e) }}
               disabled={busy}
             />
-            <VoiceButton
-              recording={instrRecording}
-              onStart={instrStart}
-              onStop={async () => {
-                setRewriting(true)
-                setError(null)
-                try {
-                  const blob = await instrStop()
-                  const res = await transcribeAudio(blob)
-                  if (res.text) setInstruction(res.text)
-                } catch (e) {
-                  setError(e.message || 'Failed to transcribe')
-                } finally {
-                  setRewriting(false)
-                }
-              }}
-              label="🎙"
+            <button
+              type="button"
+              className="icon-btn"
+              onPointerDown={(e) => { e.preventDefault(); if (!busy) instrStart() }}
+              onPointerUp={(e) => { e.preventDefault(); if (instrRecording) handleVoiceInstruction() }}
+              onPointerLeave={() => { if (instrRecording) handleVoiceInstruction() }}
               disabled={busy}
-            />
+              title="Hold to dictate instruction"
+              style={{ touchAction: 'none' }}
+            >
+              {instrRecording ? '⏹' : '🎙'}
+            </button>
             <button
               type="button"
               className="accent-btn ai-apply-btn"
@@ -101,34 +122,24 @@ export function EditNoteModal({ note, onClose, onSave }) {
           </div>
 
           {error && <p className="error">{error}</p>}
-          {saving && <p className="status">Saving and regenerating AI tags/summary…</p>}
-          {rewriting && <p className="status">Rewriting…</p>}
+          {(saving || rewriting) && (
+            <p className="status">{saving ? 'Saving…' : 'Rewriting…'}</p>
+          )}
 
+          {/* Bottom actions: voice append + Cancel + Save in one row */}
           <div className="modal-actions">
-            <div className="mini-voice-wrapper">
-              <VoiceButton
-                recording={recording}
-                onStart={start}
-                onStop={async () => {
-                  setRewriting(true)
-                  setError(null)
-                  try {
-                    const blob = await stop()
-                    const res = await transcribeAudio(blob)
-                    if (res.text) {
-                      setText((prev) => prev ? prev + ' ' + res.text : res.text)
-                    }
-                  } catch (e) {
-                    setError(e.message || 'Failed to transcribe voice')
-                  } finally {
-                    setRewriting(false)
-                  }
-                }}
-                label="Hold to add text via voice"
-                disabled={busy}
-              />
-            </div>
-
+            <button
+              type="button"
+              className="icon-btn"
+              onPointerDown={(e) => { e.preventDefault(); if (!busy) start() }}
+              onPointerUp={(e) => { e.preventDefault(); if (recording) handleVoiceAppend() }}
+              onPointerLeave={() => { if (recording) handleVoiceAppend() }}
+              disabled={busy}
+              title="Hold to append voice text"
+              style={{ touchAction: 'none' }}
+            >
+              {recording ? '⏹' : '🎙'}
+            </button>
             <div className="form-buttons">
               <button type="button" className="secondary-btn" onClick={onClose} disabled={busy}>Cancel</button>
               <button type="submit" className="accent-btn" disabled={busy || !text.trim()}>Save</button>
