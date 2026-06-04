@@ -30,6 +30,12 @@ class NoteResponse(BaseModel):
     summary: str
 
 
+class NoteUpdateRequest(BaseModel):
+    text: str
+    client_timezone: str = None
+    client_local_time: str = None
+
+
 class QueryRequest(BaseModel):
     text: str
     history: list[dict] = []
@@ -132,6 +138,49 @@ def delete_note(note_id: str):
         raise HTTPException(status_code=404, detail="Note not found")
     chroma_service.delete_note(note_id)
     return {"deleted": note_id}
+
+
+@router.put("/{note_id}", response_model=NoteResponse, dependencies=[Depends(verify_key)])
+def update_note(note_id: str, req: NoteUpdateRequest):
+    db = get_db()
+    row = db.execute("SELECT * FROM notes WHERE id = ?", (note_id,)).fetchone()
+    if not row:
+        db.close()
+        raise HTTPException(status_code=404, detail="Note not found")
+
+    # Regenerate tags & summary using the new text
+    analysis = claude_service.tag_note(req.text, req.client_timezone, req.client_local_time)
+    tags = analysis["tags"]
+    summary = analysis["summary"]
+
+    db.execute(
+        "UPDATE notes SET raw_text = ?, tags = ?, summary = ? WHERE id = ?",
+        (req.text, json.dumps(tags), summary, note_id)
+    )
+    db.commit()
+    db.close()
+
+    # Update Vector Store (Chroma)
+    chroma_service.delete_note(note_id)
+    chroma_service.add_note(note_id, req.text, {"created_at": row["created_at"], "tags": json.dumps(tags), "summary": summary})
+
+    return NoteResponse(id=note_id, created_at=row["created_at"], raw_text=req.text, tags=tags, summary=summary)
+
+
+@router.post("/transcribe", dependencies=[Depends(verify_key)])
+async def transcribe_audio(audio: UploadFile = File(...)):
+    suffix = os.path.splitext(audio.filename or "audio.webm")[1] or ".webm"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        async with aiofiles.open(tmp.name, "wb") as f:
+            await f.write(await audio.read())
+        tmp_path = tmp.name
+
+    try:
+        text = whisper_service.transcribe(tmp_path)
+    finally:
+        os.unlink(tmp_path)
+
+    return {"text": text}
 
 
 @router.post("/query", response_model=QueryResponse, dependencies=[Depends(verify_key)])

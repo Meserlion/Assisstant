@@ -7,6 +7,7 @@ import { QueryPanel } from './components/QueryPanel'
 import { CalendarTab } from './components/CalendarTab'
 import { VoiceButton } from './components/VoiceButton'
 import { ConsolidateTab } from './components/ConsolidateTab'
+import { EditNoteModal } from './components/EditNoteModal'
 import './App.css'
 
 export default function App() {
@@ -15,6 +16,7 @@ export default function App() {
   const [notes, setNotes] = useState([])
   const [loading, setLoading] = useState(false)
   const [capturing, setCapturing] = useState(false)
+  const [editingNote, setEditingNote] = useState(null)
   const [error, setError] = useState(null)
   const { recording, start, stop } = useRecorder()
 
@@ -81,7 +83,7 @@ export default function App() {
 
             <div className="notes-list">
               {notes.map((note) => (
-                <NoteCard key={note.id} note={note} onDelete={handleDelete} />
+                <NoteCard key={note.id} note={note} onDelete={handleDelete} onEdit={() => setEditingNote(note)} />
               ))}
               {!loading && notes.length === 0 && (
                 <p className="empty">No notes yet. Hold the button to record your first one.</p>
@@ -106,6 +108,17 @@ export default function App() {
         {tab === 'calendar' && <CalendarTab />}
         {tab === 'consolidate' && <ConsolidateTab notes={notes} onMergeSuccess={fetchNotes} />}
       </main>
+
+      {editingNote && (
+        <EditNoteModal
+          note={editingNote}
+          onClose={() => setEditingNote(null)}
+          onSave={(updated) => {
+            setNotes((prev) => prev.map((n) => n.id === updated.id ? updated : n))
+            setEditingNote(null)
+          }}
+        />
+      )}
     </div>
   )
 }

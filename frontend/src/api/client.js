@@ -57,6 +57,34 @@ export async function deleteNote(id) {
   return request(`/notes/${id}`, { method: 'DELETE' })
 }
 
+export async function updateNote(id, text) {
+  const clientTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const now = new Date()
+  const offset = now.getTimezoneOffset()
+  const absOffset = Math.abs(offset)
+  const tempDate = new Date(now.getTime() - (offset * 60 * 1000))
+  const localIso = tempDate.toISOString().substring(0, 19) + 
+    (offset <= 0 ? '+' : '-') + 
+    String(Math.floor(absOffset / 60)).padStart(2, '0') + ':' + 
+    String(absOffset % 60).padStart(2, '0')
+
+  return request(`/notes/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text,
+      client_timezone: clientTimezone,
+      client_local_time: localIso
+    }),
+  })
+}
+
+export async function transcribeAudio(audioBlob) {
+  const form = new FormData()
+  form.append('audio', audioBlob, 'edit.webm')
+  return request('/notes/transcribe', { method: 'POST', body: form })
+}
+
 export async function queryNotes(text, history = []) {
   return request('/notes/query', {
     method: 'POST',
