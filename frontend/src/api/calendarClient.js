@@ -30,10 +30,25 @@ export async function getEvents() {
 }
 
 export async function createReminderFromText(text, selectedDate = null) {
+  const clientTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const now = new Date()
+  const offset = now.getTimezoneOffset()
+  const absOffset = Math.abs(offset)
+  const tempDate = new Date(now.getTime() - (offset * 60 * 1000))
+  const localIso = tempDate.toISOString().substring(0, 19) + 
+    (offset <= 0 ? '+' : '-') + 
+    String(Math.floor(absOffset / 60)).padStart(2, '0') + ':' + 
+    String(absOffset % 60).padStart(2, '0')
+
   return request('/calendar/reminder/voice', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, selected_date: selectedDate }),
+    body: JSON.stringify({
+      text,
+      selected_date: selectedDate,
+      client_timezone: clientTimezone,
+      client_local_time: localIso
+    }),
   })
 }
 

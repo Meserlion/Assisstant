@@ -26,6 +26,8 @@ def verify_key(key: str = Depends(api_key_header)):
 class ReminderRequest(BaseModel):
     text: str
     selected_date: str = None  # Format: YYYY-MM-DD
+    client_timezone: str = None
+    client_local_time: str = None
 
 
 class EventCreate(BaseModel):
@@ -132,7 +134,7 @@ def create_event(req: EventCreate):
 
 @router.post("/reminder/voice", dependencies=[Depends(verify_key)])
 async def create_reminder_from_text(req: ReminderRequest):
-    parsed = _parse_reminder(req.text, req.selected_date)
+    parsed = _parse_reminder(req.text, req.selected_date, req.client_timezone, req.client_local_time)
     if not parsed:
         raise HTTPException(status_code=422, detail="Could not understand the reminder")
 
@@ -217,9 +219,13 @@ def _create_reminder(title: str, remind_at: str, event_id: str = None):
     db.close()
 
 
-def _parse_reminder(text: str, selected_date: str = None) -> dict | None:
+def _parse_reminder(text: str, selected_date: str = None, client_timezone: str = None, client_local_time: str = None) -> dict | None:
     now = datetime.now(timezone.utc).isoformat()
     context = f"Current time (UTC): {now}\n"
+    if client_local_time:
+        context += f"The user's local time is: {client_local_time}\n"
+    if client_timezone:
+        context += f"The user's local timezone is: {client_timezone}\n"
     if selected_date:
         context += f"The user has selected the date: {selected_date} in the calendar. Any relative time expressions without a specific date (e.g. 'at 3pm', 'in the afternoon') should be scheduled on this selected date: {selected_date}.\n"
         
