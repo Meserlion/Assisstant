@@ -41,7 +41,7 @@ def get_service():
     return build("calendar", "v3", credentials=creds)
 
 
-def list_events(max_results: int = 10) -> list[dict]:
+def list_events(max_results: int = 100) -> list[dict]:
     from datetime import datetime, timezone
     service = get_service()
     now = datetime.now(timezone.utc).isoformat()

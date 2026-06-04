@@ -4,6 +4,7 @@ import {
   getCalendarStatus, startOAuth, getEvents,
   createReminderFromText, listReminders, deleteReminder,
   getVapidKey, subscribePush, deleteEvent,
+  doneReminder, undoneReminder,
 } from '../api/calendarClient'
 import { VoiceButton } from './VoiceButton'
 
@@ -189,6 +190,20 @@ export function CalendarTab() {
     }
   }
 
+  async function handleToggleReminder(id, currentSent) {
+    try {
+      if (currentSent === 0) {
+        await doneReminder(id)
+        setReminders((prev) => prev.map((r) => r.id === id ? { ...r, sent: 1 } : r))
+      } else {
+        await undoneReminder(id)
+        setReminders((prev) => prev.map((r) => r.id === id ? { ...r, sent: 0 } : r))
+      }
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
   if (loading) return <p className="status">Loading…</p>
 
   return (
@@ -248,7 +263,7 @@ export function CalendarTab() {
                       <span key={e.id} className="indicator event" title={e.title}></span>
                     ))}
                     {dayReminders.slice(0, reminderDotsCount).map((r) => (
-                      <span key={r.id} className="indicator reminder" title={r.title}></span>
+                      <span key={r.id} className={`indicator reminder ${r.sent === 1 ? 'completed-dot' : ''}`} title={r.title}></span>
                     ))}
                   </div>
                 </div>
@@ -286,17 +301,28 @@ export function CalendarTab() {
               <div className="schedule-section">
                 <h4>🔔 Reminders</h4>
                 <div className="schedule-items">
-                  {reminders.filter((r) => isSameDay(new Date(r.remind_at), selectedDate)).map((r) => (
-                    <div key={r.id} className="schedule-item reminder-item">
-                      <div className="item-content">
-                        <span className="item-title">{r.title}</span>
-                        <span className="item-time">
-                          {new Date(r.remind_at).toLocaleTimeString('default', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
+                   {reminders.filter((r) => isSameDay(new Date(r.remind_at), selectedDate)).map((r) => {
+                    const isCompleted = r.sent === 1;
+                    return (
+                      <div key={r.id} className={`schedule-item reminder-item ${isCompleted ? 'completed' : ''}`}>
+                        <div className="item-checkbox-content">
+                          <input
+                            type="checkbox"
+                            className="reminder-checkbox"
+                            checked={isCompleted}
+                            onChange={() => handleToggleReminder(r.id, r.sent)}
+                          />
+                          <div className="item-content">
+                            <span className="item-title">{r.title}</span>
+                            <span className="item-time">
+                              {new Date(r.remind_at).toLocaleTimeString('default', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        </div>
+                        <button className="delete-btn" onClick={() => handleDeleteReminder(r.id)}>×</button>
                       </div>
-                      <button className="delete-btn" onClick={() => handleDeleteReminder(r.id)}>×</button>
-                    </div>
-                  ))}
+                    )
+                  })}
                   {reminders.filter((r) => isSameDay(new Date(r.remind_at), selectedDate)).length === 0 && (
                     <p className="no-items">No reminders scheduled today.</p>
                   )}

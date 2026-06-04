@@ -163,7 +163,7 @@ async def create_reminder_from_text(req: ReminderRequest):
 @router.get("/reminders", dependencies=[Depends(verify_key)])
 def list_reminders():
     db = get_db()
-    rows = db.execute("SELECT * FROM reminders WHERE sent = 0 ORDER BY remind_at ASC").fetchall()
+    rows = db.execute("SELECT * FROM reminders ORDER BY remind_at ASC").fetchall()
     db.close()
     return [dict(r) for r in rows]
 
@@ -207,6 +207,20 @@ def done_reminder(reminder_id: str):
     db.commit()
     db.close()
     return {"status": "done"}
+
+
+@router.post("/reminders/{reminder_id}/undone", dependencies=[Depends(verify_key)])
+def undone_reminder(reminder_id: str):
+    db = get_db()
+    row = db.execute("SELECT * FROM reminders WHERE id = ?", (reminder_id,)).fetchone()
+    if not row:
+        db.close()
+        raise HTTPException(status_code=404, detail="Reminder not found")
+    
+    db.execute("UPDATE reminders SET sent = 0 WHERE id = ?", (reminder_id,))
+    db.commit()
+    db.close()
+    return {"status": "active"}
 
 
 @router.delete("/events/{event_id}", dependencies=[Depends(verify_key)])

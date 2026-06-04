@@ -76,6 +76,14 @@ export async function deleteEvent(id) {
   return request(`/calendar/events/${id}`, { method: 'DELETE' })
 }
 
+export async function doneReminder(id) {
+  return request(`/calendar/reminders/${id}/done`, { method: 'POST' })
+}
+
+export async function undoneReminder(id) {
+  return request(`/calendar/reminders/${id}/undone`, { method: 'POST' })
+}
+
 export async function getVapidKey() {
   return request('/push/vapid-public-key')
 }

@@ -90,16 +90,16 @@ def rewrite_query(query: str, history: list[dict]) -> str:
         return query
 
 
-def answer_query(query: str, context_notes: list[dict], history: list[dict] = None) -> str:
+def answer_query(query: str, context_notes: list[dict], history: list[dict] = None, schedule_context: str = "") -> str:
     """Answer a search query using retrieved notes as context."""
     notes_text = "\n\n".join(
         f"[{n['created_at']}] {n['raw_text']}" for n in context_notes
     )
     
     system_prompt = (
-        "You are a personal assistant with access to the user's notes. "
-        "Answer the query using only the provided notes. "
-        "Be concise and direct. If the notes don't contain relevant info, say so."
+        "You are a personal assistant with access to the user's notes and upcoming calendar schedule. "
+        "Answer the query using only the provided notes and schedule. "
+        "Be concise and direct. If the notes and schedule don't contain relevant info, say so."
     )
     
     cleaned_messages = []
@@ -116,7 +116,7 @@ def answer_query(query: str, context_notes: list[dict], history: list[dict] = No
     if expected_role == "assistant" and cleaned_messages:
         cleaned_messages.pop()
         
-    user_content = f"Query: {query}\n\nNotes:\n{notes_text}"
+    user_content = f"Query: {query}\n\nNotes:\n{notes_text}\n{schedule_context}"
     cleaned_messages.append({
         "role": "user",
         "content": user_content

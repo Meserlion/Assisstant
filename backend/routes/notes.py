@@ -188,11 +188,31 @@ def query_notes(req: QueryRequest):
     # Rewrite the search query for vector retrieval using history if present
     search_query = claude_service.rewrite_query(req.text, req.history)
     matches = chroma_service.search_notes(search_query)
+
+    # 1. Fetch upcoming schedule context (next 7 days) from local notes DB (synced calendar events)
+    from datetime import datetime, timezone, timedelta
+    now_utc = datetime.now(timezone.utc)
+    limit_utc = (now_utc + timedelta(days=7)).isoformat()
+
+    db = get_db()
+    calendar_rows = db.execute(
+        "SELECT created_at, raw_text FROM notes WHERE tags LIKE '%\"calendar\"%' AND created_at >= ? AND created_at <= ? ORDER BY created_at ASC",
+        (now_utc.isoformat(), limit_utc)
+    ).fetchall()
+
+    schedule_context = ""
+    if calendar_rows:
+        schedule_context = "\nUpcoming Calendar Schedule (Next 7 Days):\n" + "\n".join(
+            f"- [{r['created_at']}] {r['raw_text']}" for r in calendar_rows
+        )
+
     if not matches:
-        return QueryResponse(query=req.text, answer="I couldn't find any relevant notes.", sources=[])
+        db.close()
+        # Answer using schedule context even if vector search matches are empty
+        answer = claude_service.answer_query(req.text, [], req.history, schedule_context)
+        return QueryResponse(query=req.text, answer=answer, sources=[])
 
     ids = [m["id"] for m in matches]
-    db = get_db()
     placeholders = ",".join("?" * len(ids))
     rows = db.execute(f"SELECT * FROM notes WHERE id IN ({placeholders})", ids).fetchall()
     db.close()
@@ -209,7 +229,7 @@ def query_notes(req: QueryRequest):
         for m in matches if m["id"] in row_map
     ]
 
-    answer = claude_service.answer_query(req.text, [s.model_dump() for s in sources], req.history)
+    answer = claude_service.answer_query(req.text, [s.model_dump() for s in sources], req.history, schedule_context)
     return QueryResponse(query=req.text, answer=answer, sources=sources)
 
 
