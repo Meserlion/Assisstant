@@ -14,8 +14,9 @@ def check_reminders():
         "SELECT * FROM reminders WHERE sent = 0 AND remind_at <= ?", (window,)
     ).fetchall()
     for r in due:
-        send_push(title="Reminder", body=r["title"], reminder_id=r["id"])
-        db.execute("UPDATE reminders SET sent = 1 WHERE id = ?", (r["id"],))
+        delivered = send_push(title="Reminder", body=r["title"], reminder_id=r["id"])
+        if delivered:
+            db.execute("UPDATE reminders SET sent = 1 WHERE id = ?", (r["id"],))
     db.commit()
     db.close()
 

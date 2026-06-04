@@ -83,28 +83,32 @@ async def capture_note(
     # If this note indicates a reminder scheduling request, create the reminder record
     if analysis["is_reminder"] and analysis["reminder_details"]:
         rem_details = analysis["reminder_details"]
-        reminder_id = str(uuid.uuid4())
-        db = get_db()
-        db.execute(
-            "INSERT INTO reminders (id, title, remind_at, created_at) VALUES (?, ?, ?, ?)",
-            (reminder_id, rem_details["title"], rem_details["remind_at"], created_at),
-        )
-        db.commit()
-        db.close()
-        
-        # Sync reminder to Google Calendar if connected
-        from services import google_calendar
-        from datetime import timedelta
-        if google_calendar.is_connected():
-            try:
-                end_iso = (datetime.fromisoformat(rem_details["remind_at"]) + timedelta(hours=1)).isoformat()
-                event_id = google_calendar.create_event(rem_details["title"], rem_details["remind_at"], end_iso)
-                db = get_db()
-                db.execute("UPDATE reminders SET google_event_id = ? WHERE id = ?", (event_id, reminder_id))
-                db.commit()
-                db.close()
-            except Exception as e:
-                print(f"Failed to sync auto-reminder to Google Calendar: {e}")
+        title = rem_details.get("title") or text[:80]
+        remind_at = rem_details.get("remind_at")
+        if remind_at:
+            reminder_id = str(uuid.uuid4())
+            db = get_db()
+            db.execute(
+                "INSERT INTO reminders (id, title, remind_at, created_at) VALUES (?, ?, ?, ?)",
+                (reminder_id, title, remind_at, created_at),
+            )
+            db.commit()
+            db.close()
+
+            # Sync reminder to Google Calendar if connected
+            from services import google_calendar
+            from datetime import timedelta
+            if google_calendar.is_connected():
+                try:
+                    remind_at_dt = datetime.fromisoformat(remind_at.replace("Z", "+00:00"))
+                    end_iso = (remind_at_dt + timedelta(hours=1)).isoformat()
+                    event_id = google_calendar.create_event(title, remind_at, end_iso)
+                    db = get_db()
+                    db.execute("UPDATE reminders SET google_event_id = ? WHERE id = ?", (event_id, reminder_id))
+                    db.commit()
+                    db.close()
+                except Exception as e:
+                    print(f"Failed to sync auto-reminder to Google Calendar: {e}")
 
     return NoteResponse(id=note_id, created_at=created_at, raw_text=text, tags=tags, summary=summary)
 
@@ -266,11 +270,56 @@ class MergeGroupRequest(BaseModel):
     summary: str
 
 
-@router.get("/groups", response_model=list[NoteGroupResponse], dependencies=[Depends(verify_key)])
-def list_note_groups():
+def _classify_notes(notes_list: list[dict]) -> tuple[list[str], list[str], list[dict]]:
+    """Return (programmatic_trash_ids, llm_trash_ids, active_notes) without deleting anything."""
+    NOISE = {
+        "you", "thank you", "bye", "bye bye", "goodbye", "hello", "hi", "ok",
+        "okay", "yeah", "yes", "no", "uh", "um", "ah", "oh", "thanks", "yep",
+        "yup", "testing", "test", "testing testing", "thank you for watching", "watching"
+    }
+    programmatic_trash_ids = []
+    active_notes = []
+    for note in notes_list:
+        text = note["raw_text"].strip()
+        cleaned = text.lower().rstrip(".").rstrip("?").rstrip("!").strip()
+        if not text or cleaned in NOISE:
+            programmatic_trash_ids.append(note["id"])
+        else:
+            active_notes.append(note)
+
+    result = claude_service.cluster_notes(active_notes)
+    llm_trash_ids = result.get("trash_note_ids", [])
+    groups = result.get("groups", [])
+    return programmatic_trash_ids, llm_trash_ids, groups
+
+
+def _delete_notes(note_ids: list[str]):
+    if not note_ids:
+        return
     db = get_db()
-    rows = db.execute("SELECT * FROM notes WHERE tags NOT LIKE '%\"calendar\"%'").fetchall()
-    
+    placeholders = ",".join("?" * len(note_ids))
+    db.execute(f"DELETE FROM notes WHERE id IN ({placeholders})", note_ids)
+    db.commit()
+    db.close()
+    for nid in note_ids:
+        try:
+            chroma_service.delete_note(nid)
+        except Exception as e:
+            print(f"Error deleting note {nid} from Chroma: {e}")
+
+
+class NoteGroupsResponse(BaseModel):
+    groups: list[NoteGroupResponse]
+    trash_ids: list[str]
+
+
+@router.get("/groups", response_model=NoteGroupsResponse, dependencies=[Depends(verify_key)])
+def list_note_groups():
+    """Read-only: clusters notes and identifies trash, but does NOT delete anything."""
+    db = get_db()
+    rows = db.execute("SELECT * FROM notes WHERE id NOT LIKE 'calendar-%'").fetchall()
+    db.close()
+
     notes_list = [
         {
             "id": r["id"],
@@ -281,67 +330,24 @@ def list_note_groups():
         }
         for r in rows
     ]
-    
-    # 1. Programmatic cleanup of empty/obvious noise notes
-    programmatic_trash_ids = []
-    active_notes = []
-    
-    for note in notes_list:
-        text = note["raw_text"].strip()
-        cleaned = text.lower().rstrip(".").rstrip("?").rstrip("!").strip()
-        
-        is_empty = not text
-        is_noise = cleaned in {
-            "you", "thank you", "thank you.", "bye", "bye bye", "goodbye",
-            "hello", "hi", "ok", "okay", "yeah", "yes", "no", "uh", "um", "ah",
-            "oh", "thanks", "thanks.", "yep", "yup", "testing", "test", "testing testing",
-            "thank you for watching", "thank you for watching.", "watching"
-        }
-        
-        if is_empty or is_noise:
-            programmatic_trash_ids.append(note["id"])
-        else:
-            active_notes.append(note)
-            
-    # Delete programmatic trash from database and vector store
-    if programmatic_trash_ids:
-        placeholders = ",".join("?" * len(programmatic_trash_ids))
-        db.execute(f"DELETE FROM notes WHERE id IN ({placeholders})", programmatic_trash_ids)
-        db.commit()
-        for trash_id in programmatic_trash_ids:
-            try:
-                chroma_service.delete_note(trash_id)
-            except Exception as e:
-                print(f"Error deleting programmatic trash note from Chroma: {e}")
-                
-    db.close()
-    
-    # 2. LLM-based semantic trash detection & clustering
-    result = claude_service.cluster_notes(active_notes)
-    groups = result.get("groups", [])
-    llm_trash_ids = result.get("trash_note_ids", [])
-    
-    # Delete LLM trash from database and vector store
-    if llm_trash_ids:
-        db = get_db()
-        placeholders = ",".join("?" * len(llm_trash_ids))
-        db.execute(f"DELETE FROM notes WHERE id IN ({placeholders})", llm_trash_ids)
-        db.commit()
-        db.close()
-        for trash_id in llm_trash_ids:
-            try:
-                chroma_service.delete_note(trash_id)
-            except Exception as e:
-                print(f"Error deleting LLM trash note from Chroma: {e}")
-                
-    return [
-        NoteGroupResponse(
-            topic=g["topic"],
-            summary=g["summary"],
-            note_ids=g["note_ids"]
-        )
-        for g in groups
-    ]
+
+    programmatic_trash_ids, llm_trash_ids, groups = _classify_notes(notes_list)
+    all_trash_ids = programmatic_trash_ids + llm_trash_ids
+
+    return NoteGroupsResponse(
+        groups=[NoteGroupResponse(topic=g["topic"], summary=g["summary"], note_ids=g["note_ids"]) for g in groups],
+        trash_ids=all_trash_ids,
+    )
+
+
+@router.post("/groups/cleanup", dependencies=[Depends(verify_key)])
+def cleanup_trash_notes(body: dict):
+    """Delete the given note IDs (user explicitly confirms trash before calling this)."""
+    note_ids = body.get("note_ids", [])
+    if not note_ids:
+        return {"deleted": 0}
+    _delete_notes(note_ids)
+    return {"deleted": len(note_ids)}
 
 
 @router.post("/merge-group", response_model=NoteResponse, dependencies=[Depends(verify_key)])
@@ -374,25 +380,26 @@ def merge_note_group(req: MergeGroupRequest):
     # Generate tags/summary for unified text
     analysis = claude_service.tag_note(unified_text)
     tags = analysis["tags"]
-    
+    summary = analysis["summary"] or req.summary
+
     # Save the consolidated note
     note_id = str(uuid.uuid4())
     created_at = datetime.now(timezone.utc).isoformat()
-    
+
     db.execute(
         "INSERT INTO notes (id, created_at, raw_text, tags, summary) VALUES (?, ?, ?, ?, ?)",
-        (note_id, created_at, unified_text, json.dumps(tags), req.summary),
+        (note_id, created_at, unified_text, json.dumps(tags), summary),
     )
-    
+
     # Delete the old notes
     db.execute(f"DELETE FROM notes WHERE id IN ({placeholders})", req.note_ids)
     db.commit()
     db.close()
-    
+
     # Update Vector Store
-    chroma_service.add_note(note_id, unified_text, {"created_at": created_at, "tags": json.dumps(tags), "summary": req.summary})
+    chroma_service.add_note(note_id, unified_text, {"created_at": created_at, "tags": json.dumps(tags), "summary": summary})
     for old_id in req.note_ids:
         chroma_service.delete_note(old_id)
-        
-    return NoteResponse(id=note_id, created_at=created_at, raw_text=unified_text, tags=tags, summary=req.summary)
+
+    return NoteResponse(id=note_id, created_at=created_at, raw_text=unified_text, tags=tags, summary=summary)
 

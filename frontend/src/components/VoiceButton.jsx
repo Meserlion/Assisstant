@@ -5,26 +5,24 @@ export function VoiceButton({ recording, onStart, onStop, label, disabled }) {
   const [isToggleMode, setIsToggleMode] = useState(false)
   const recordingRef = useRef(recording)
 
-  // Keep ref in sync
+  // Keep ref in sync with the prop so event handlers always see the latest value
   useEffect(() => {
     recordingRef.current = recording
-    if (!recording) {
-      setIsToggleMode(false)
-    }
   }, [recording])
+
+  // isToggleMode is only meaningful while recording; clear it when recording ends
+  const activeToggleMode = isToggleMode && recording
 
   function handlePointerDown(e) {
     if (disabled) return
     e.preventDefault()
-    
+
     if (recordingRef.current) {
-      // If we are recording in toggle mode, clicking again stops the recording
-      if (isToggleMode) {
-        onStop()
-        setIsToggleMode(false)
-      }
+      // Any press while recording stops it (covers toggle mode and the stuck-recording recovery case)
+      onStop()
+      setIsToggleMode(false)
+      pointerDownTimeRef.current = 0
     } else {
-      // Start recording
       pointerDownTimeRef.current = Date.now()
       onStart()
     }
@@ -33,32 +31,35 @@ export function VoiceButton({ recording, onStart, onStop, label, disabled }) {
   function handlePointerUp(e) {
     if (disabled) return
     e.preventDefault()
-    
+
     if (pointerDownTimeRef.current > 0) {
       const duration = Date.now() - pointerDownTimeRef.current
-      pointerDownTimeRef.current = 0 // Reset
-      
+      pointerDownTimeRef.current = 0
+
       if (duration < 250) {
-        // Quick press: activate toggle mode (keep recording active)
+        // Quick tap: stay in recording, activate toggle mode so user taps again to send
         setIsToggleMode(true)
       } else {
-        // Hold press: stop recording immediately on release
+        // Hold: stop on release
         onStop()
         setIsToggleMode(false)
       }
     }
   }
 
-  function handlePointerLeave(e) {
+  function handlePointerLeave() {
     if (disabled) return
     if (pointerDownTimeRef.current > 0) {
       const duration = Date.now() - pointerDownTimeRef.current
-      pointerDownTimeRef.current = 0 // Reset
-      
+      pointerDownTimeRef.current = 0
+
       if (duration >= 250) {
+        // Dragged off after a hold: stop recording
         onStop()
         setIsToggleMode(false)
       }
+      // Fast drag-off (< 250ms): toggle mode is NOT activated — recording is active but
+      // the next pointerDown (handled above) will always stop it, so no stuck state.
     }
   }
 
@@ -74,8 +75,8 @@ export function VoiceButton({ recording, onStart, onStop, label, disabled }) {
     >
       <span className="mic-icon">{recording ? '⏹' : '🎙'}</span>
       <span>
-        {recording 
-          ? (isToggleMode ? 'Tap to send' : 'Release to send') 
+        {recording
+          ? (activeToggleMode ? 'Tap to send' : 'Release to send')
           : label
         }
       </span>

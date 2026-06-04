@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { getNoteGroups, mergeNoteGroup } from '../api/client'
+import { getNoteGroups, cleanupTrashNotes, mergeNoteGroup } from '../api/client'
 
 export function ConsolidateTab({ notes, onMergeSuccess }) {
   const [groups, setGroups] = useState([])
+  const [trashIds, setTrashIds] = useState([])
   const [loading, setLoading] = useState(true)
   const [mergingId, setMergingId] = useState(null)
   const [error, setError] = useState(null)
@@ -13,7 +14,8 @@ export function ConsolidateTab({ notes, onMergeSuccess }) {
     setError(null)
     try {
       const data = await getNoteGroups()
-      setGroups(data)
+      setGroups(data.groups)
+      setTrashIds(data.trash_ids || [])
     } catch (e) {
       setError(e.message)
     } finally {
@@ -25,6 +27,18 @@ export function ConsolidateTab({ notes, onMergeSuccess }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchGroups()
   }, [])
+
+  async function handleCleanupTrash() {
+    if (!window.confirm(`Delete ${trashIds.length} empty or noise note${trashIds.length > 1 ? 's' : ''}? This cannot be undone.`)) return
+    try {
+      await cleanupTrashNotes(trashIds)
+      setTrashIds([])
+      setSuccessMsg(`Deleted ${trashIds.length} noise note${trashIds.length > 1 ? 's' : ''}.`)
+      if (onMergeSuccess) onMergeSuccess()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
 
   async function handleMerge(group) {
     if (window.confirm(`Are you sure you want to consolidate these notes into a single note?`)) {
@@ -57,6 +71,13 @@ export function ConsolidateTab({ notes, onMergeSuccess }) {
 
       {error && <p className="error">{error}</p>}
       {successMsg && <p className="status" style={{ color: 'var(--success)', fontWeight: 'bold' }}>{successMsg}</p>}
+
+      {trashIds.length > 0 && (
+        <div className="trash-banner">
+          <span>{trashIds.length} empty or noise note{trashIds.length > 1 ? 's' : ''} found.</span>
+          <button className="secondary-btn" onClick={handleCleanupTrash}>Delete them</button>
+        </div>
+      )}
 
       <div className="groups-list">
         {groups.map((group) => {

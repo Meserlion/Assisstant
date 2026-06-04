@@ -25,8 +25,12 @@ def _load_creds() -> Credentials | None:
         return None
     creds = Credentials.from_authorized_user_info(json.loads(row["token_json"]), SCOPES)
     if creds.expired and creds.refresh_token:
-        creds.refresh(Request())
-        _save_tokens(creds)
+        try:
+            creds.refresh(Request())
+            _save_tokens(creds)
+        except Exception as e:
+            print(f"Google token refresh failed: {e}")
+            return None
     return creds
 
 

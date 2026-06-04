@@ -15,7 +15,7 @@ function getErrorMessage(detail) {
   return String(detail)
 }
 
-async function request(path, options = {}) {
+export async function request(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, {
     ...options,
     headers: {
@@ -31,21 +31,26 @@ async function request(path, options = {}) {
   return res.json()
 }
 
-export async function captureNote(audioBlob) {
-  const clientTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+function getLocalIsoTime() {
   const now = new Date()
   const offset = now.getTimezoneOffset()
   const absOffset = Math.abs(offset)
-  const tempDate = new Date(now.getTime() - (offset * 60 * 1000))
-  const localIso = tempDate.toISOString().substring(0, 19) + 
-    (offset <= 0 ? '+' : '-') + 
-    String(Math.floor(absOffset / 60)).padStart(2, '0') + ':' + 
+  const local = new Date(now.getTime() - offset * 60 * 1000)
+  return local.toISOString().substring(0, 19) +
+    (offset <= 0 ? '+' : '-') +
+    String(Math.floor(absOffset / 60)).padStart(2, '0') + ':' +
     String(absOffset % 60).padStart(2, '0')
+}
 
+export function getClientTimezone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone
+}
+
+export async function captureNote(audioBlob) {
   const form = new FormData()
   form.append('audio', audioBlob, 'recording.webm')
-  form.append('client_timezone', clientTimezone)
-  form.append('client_local_time', localIso)
+  form.append('client_timezone', getClientTimezone())
+  form.append('client_local_time', getLocalIsoTime())
   return request('/notes/capture', { method: 'POST', body: form })
 }
 
@@ -58,23 +63,13 @@ export async function deleteNote(id) {
 }
 
 export async function updateNote(id, text) {
-  const clientTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
-  const now = new Date()
-  const offset = now.getTimezoneOffset()
-  const absOffset = Math.abs(offset)
-  const tempDate = new Date(now.getTime() - (offset * 60 * 1000))
-  const localIso = tempDate.toISOString().substring(0, 19) + 
-    (offset <= 0 ? '+' : '-') + 
-    String(Math.floor(absOffset / 60)).padStart(2, '0') + ':' + 
-    String(absOffset % 60).padStart(2, '0')
-
   return request(`/notes/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       text,
-      client_timezone: clientTimezone,
-      client_local_time: localIso
+      client_timezone: getClientTimezone(),
+      client_local_time: getLocalIsoTime(),
     }),
   })
 }
@@ -110,6 +105,14 @@ export function hasApiKey() {
 
 export async function getNoteGroups() {
   return request('/notes/groups')
+}
+
+export async function cleanupTrashNotes(noteIds) {
+  return request('/notes/groups/cleanup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ note_ids: noteIds }),
+  })
 }
 
 export async function mergeNoteGroup(noteIds, topic, summary) {
