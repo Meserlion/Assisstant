@@ -79,6 +79,20 @@ export default function App() {
     URL.revokeObjectURL(url)
   }
 
+  const [reportOpen, setReportOpen] = useState(false)
+  const [reportTitle, setReportTitle] = useState('')
+  const [reportBody, setReportBody] = useState('')
+
+  function handleReport(e) {
+    e.preventDefault()
+    if (!reportTitle.trim()) return
+    const url = `https://github.com/Meserlion/Assisstant/issues/new?title=${encodeURIComponent(reportTitle.trim())}&body=${encodeURIComponent(reportBody.trim())}`
+    window.open(url, '_blank')
+    setReportOpen(false)
+    setReportTitle('')
+    setReportBody('')
+  }
+
   if (!ready) return <ApiKeySetup onDone={() => setReady(true)} />
 
   return (
@@ -91,6 +105,7 @@ export default function App() {
           <button className={tab === 'ask' ? 'active' : ''} onClick={() => setTab('ask')}>Ask</button>
           <button className={tab === 'calendar' ? 'active' : ''} onClick={() => setTab('calendar')}>Calendar</button>
         </nav>
+        <button className="report-btn" onClick={() => setReportOpen(true)} title="Report issue or suggest feature">?</button>
       </header>
 
       <main>
@@ -148,6 +163,36 @@ export default function App() {
         {tab === 'calendar' && <CalendarTab />}
         {tab === 'consolidate' && <ConsolidateTab notes={notes} onMergeSuccess={fetchNotes} />}
       </main>
+
+      {reportOpen && (
+        <div className="modal-backdrop">
+          <div className="modal-container">
+            <div className="modal-header">
+              <h3>Report Issue / Suggest Feature</h3>
+              <button className="close-btn" onClick={() => setReportOpen(false)}>×</button>
+            </div>
+            <form onSubmit={handleReport} className="report-form">
+              <input
+                type="text"
+                placeholder="Title — what's the issue or idea?"
+                value={reportTitle}
+                onChange={(e) => setReportTitle(e.target.value)}
+                autoFocus
+              />
+              <textarea
+                placeholder="Details (optional) — steps to reproduce, expected behaviour, etc."
+                value={reportBody}
+                onChange={(e) => setReportBody(e.target.value)}
+                rows={5}
+              />
+              <div className="form-buttons">
+                <button type="button" className="secondary-btn" onClick={() => setReportOpen(false)}>Cancel</button>
+                <button type="submit" className="accent-btn" disabled={!reportTitle.trim()}>Open on GitHub →</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {editingNote && (
         <EditNoteModal
