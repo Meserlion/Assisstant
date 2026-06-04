@@ -100,7 +100,7 @@ export function QueryPanel() {
       <div className="bottom-bar">
         {error && <p className="error">{error}</p>}
         
-        <form onSubmit={handleTextQuery} className="text-query-form">
+        <form onSubmit={handleTextQuery} className="text-query-form chat-input-row">
           <input
             type="text"
             placeholder="Type your follow-up..."
@@ -108,34 +108,37 @@ export function QueryPanel() {
             onChange={(e) => setTextInput(e.target.value)}
             disabled={loading}
           />
+          
+          <div className="voice-mic-wrapper">
+            <VoiceButton
+              recording={recording}
+              onStart={start}
+              onStop={async () => {
+                setLoading(true)
+                setError(null)
+                try {
+                  const blob = await stop()
+                  const history = getHistoryList()
+                  const res = await queryNotesVoice(blob, history)
+                  
+                  setMessages(prev => [
+                    ...prev,
+                    { role: 'user', content: res.query },
+                    { role: 'assistant', content: res.answer, sources: res.sources }
+                  ])
+                } catch (e) {
+                  setError(e.message)
+                } finally {
+                  setLoading(false)
+                }
+              }}
+              label="Ask by voice"
+              disabled={loading}
+            />
+          </div>
+
           <button type="submit" disabled={loading || !textInput.trim()}>Ask</button>
         </form>
-
-        <VoiceButton
-          recording={recording}
-          onStart={start}
-          onStop={async () => {
-            setLoading(true)
-            setError(null)
-            try {
-              const blob = await stop()
-              const history = getHistoryList()
-              const res = await queryNotesVoice(blob, history)
-              
-              setMessages(prev => [
-                ...prev,
-                { role: 'user', content: res.query },
-                { role: 'assistant', content: res.answer, sources: res.sources }
-              ])
-            } catch (e) {
-              setError(e.message)
-            } finally {
-              setLoading(false)
-            }
-          }}
-          label="Hold to ask"
-          disabled={loading}
-        />
       </div>
     </div>
   )

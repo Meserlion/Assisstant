@@ -1586,22 +1586,46 @@ section:nth-of-type(3) .event-card::before {
   background: var(--accent-grad);
   border-color: transparent;
   box-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .reminder-checkbox:checked::after {
   content: "✓";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
   color: #ffffff;
   font-size: 0.75rem;
   font-weight: bold;
+  line-height: 1;
+  display: block;
+  margin-top: -1px;
 }
 
 .completed-dot {
   opacity: 0.35;
   box-shadow: none !important;
+}
+
+/* Chat Input Row Positioning */
+.chat-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.chat-input-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-input-row .voice-mic-wrapper {
+  flex-shrink: 0;
+}
+
+.chat-input-row button[type="submit"] {
+  flex-shrink: 0;
+  padding: 14px 20px;
 }
 
 
