@@ -5,28 +5,54 @@ from config import settings
 client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
 
-def tag_note(text: str) -> tuple[list[str], str]:
-    """Returns (tags, summary) for a note."""
-    response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=256,
-        messages=[{
-            "role": "user",
-            "content": (
-                "Analyse this note and return a JSON object with two fields: "
-                "'tags' (array of 1-5 short lowercase tag strings) and "
-                "'summary' (one sentence). Note:\n\n" + text
-            )
-        }]
+def tag_note(text: str, client_timezone: str = None, client_local_time: str = None) -> dict:
+    """Returns a dict containing tags, summary, is_reminder, and reminder_details."""
+    context = ""
+    if client_local_time:
+        context += f"User's local time: {client_local_time}\n"
+    if client_timezone:
+        context += f"User's local timezone: {client_timezone}\n"
+        
+    prompt = (
+        "Analyze this note and return a JSON object with the following fields:\n"
+        "- 'tags': array of 1-5 short lowercase tags.\n"
+        "- 'summary': a one-sentence consolidated summary.\n"
+        "- 'is_reminder': boolean. Set to true if the note indicates a reminder or scheduling request (e.g., starts with or contains 'remind me to', 'remember to', 'schedule a reminder', 'don't forget to', etc.).\n"
+        "- 'reminder_details': if is_reminder is true, a JSON object containing 'title' (what to remind them of) and 'remind_at' (ISO 8601 UTC string of when to remind them). If no time is specified, default to 1 hour from now. If is_reminder is false, set reminder_details to null.\n\n"
+        f"{context}"
+        f"Note:\n{text}\n\n"
+        "Return ONLY the valid JSON object, nothing else."
     )
-    raw = response.content[0].text.strip()
-    # Strip markdown code fences if present
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    data = json.loads(raw)
-    return data["tags"], data["summary"]
+    
+    try:
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=300,
+            messages=[{
+                "role": "user",
+                "content": prompt
+            }]
+        )
+        raw = response.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        data = json.loads(raw)
+        return {
+            "tags": data.get("tags", []),
+            "summary": data.get("summary", ""),
+            "is_reminder": data.get("is_reminder", False),
+            "reminder_details": data.get("reminder_details")
+        }
+    except Exception as e:
+        print(f"Error parsing tagged note: {e}")
+        return {
+            "tags": [],
+            "summary": text[:50],
+            "is_reminder": False,
+            "reminder_details": None
+        }
 
 
 def rewrite_query(query: str, history: list[dict]) -> str:

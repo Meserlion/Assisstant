@@ -42,7 +42,11 @@ class QueryResponse(BaseModel):
 
 
 @router.post("/capture", response_model=NoteResponse, dependencies=[Depends(verify_key)])
-async def capture_note(audio: UploadFile = File(...)):
+async def capture_note(
+    audio: UploadFile = File(...),
+    client_timezone: str = Form(None),
+    client_local_time: str = Form(None)
+):
     suffix = os.path.splitext(audio.filename or "audio.webm")[1] or ".webm"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         async with aiofiles.open(tmp.name, "wb") as f:
@@ -54,7 +58,9 @@ async def capture_note(audio: UploadFile = File(...)):
     finally:
         os.unlink(tmp_path)
 
-    tags, summary = claude_service.tag_note(text)
+    analysis = claude_service.tag_note(text, client_timezone, client_local_time)
+    tags = analysis["tags"]
+    summary = analysis["summary"]
     note_id = str(uuid.uuid4())
     created_at = datetime.now(timezone.utc).isoformat()
 
@@ -67,6 +73,32 @@ async def capture_note(audio: UploadFile = File(...)):
     db.close()
 
     chroma_service.add_note(note_id, text, {"created_at": created_at, "tags": json.dumps(tags), "summary": summary})
+
+    # If this note indicates a reminder scheduling request, create the reminder record
+    if analysis["is_reminder"] and analysis["reminder_details"]:
+        rem_details = analysis["reminder_details"]
+        reminder_id = str(uuid.uuid4())
+        db = get_db()
+        db.execute(
+            "INSERT INTO reminders (id, title, remind_at, created_at) VALUES (?, ?, ?, ?)",
+            (reminder_id, rem_details["title"], rem_details["remind_at"], created_at),
+        )
+        db.commit()
+        db.close()
+        
+        # Sync reminder to Google Calendar if connected
+        from services import google_calendar
+        from datetime import timedelta
+        if google_calendar.is_connected():
+            try:
+                end_iso = (datetime.fromisoformat(rem_details["remind_at"]) + timedelta(hours=1)).isoformat()
+                event_id = google_calendar.create_event(rem_details["title"], rem_details["remind_at"], end_iso)
+                db = get_db()
+                db.execute("UPDATE reminders SET google_event_id = ? WHERE id = ?", (event_id, reminder_id))
+                db.commit()
+                db.close()
+            except Exception as e:
+                print(f"Failed to sync auto-reminder to Google Calendar: {e}")
 
     return NoteResponse(id=note_id, created_at=created_at, raw_text=text, tags=tags, summary=summary)
 
@@ -220,7 +252,8 @@ def merge_note_group(req: MergeGroupRequest):
     unified_text = claude_service.synthesize_merged_note(notes_list)
     
     # Generate tags/summary for unified text
-    tags, _ = claude_service.tag_note(unified_text)
+    analysis = claude_service.tag_note(unified_text)
+    tags = analysis["tags"]
     
     # Save the consolidated note
     note_id = str(uuid.uuid4())

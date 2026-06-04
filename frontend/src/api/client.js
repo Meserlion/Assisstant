@@ -32,8 +32,20 @@ async function request(path, options = {}) {
 }
 
 export async function captureNote(audioBlob) {
+  const clientTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const now = new Date()
+  const offset = now.getTimezoneOffset()
+  const absOffset = Math.abs(offset)
+  const tempDate = new Date(now.getTime() - (offset * 60 * 1000))
+  const localIso = tempDate.toISOString().substring(0, 19) + 
+    (offset <= 0 ? '+' : '-') + 
+    String(Math.floor(absOffset / 60)).padStart(2, '0') + ':' + 
+    String(absOffset % 60).padStart(2, '0')
+
   const form = new FormData()
   form.append('audio', audioBlob, 'recording.webm')
+  form.append('client_timezone', clientTimezone)
+  form.append('client_local_time', localIso)
   return request('/notes/capture', { method: 'POST', body: form })
 }
 
