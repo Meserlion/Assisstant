@@ -131,10 +131,10 @@ def answer_query(query: str, context_notes: list[dict], history: list[dict] = No
     return response.content[0].text.strip()
 
 
-def cluster_notes(notes: list[dict]) -> list[dict]:
-    """Group notes by similarity and return a list of groups with consolidated summaries."""
-    if not notes or len(notes) < 2:
-        return []
+def cluster_notes(notes: list[dict]) -> dict:
+    """Group notes by similarity and return a list of groups with consolidated summaries, and identify trash notes."""
+    if not notes:
+        return {"groups": [], "trash_note_ids": []}
     
     notes_data = []
     for n in notes:
@@ -146,13 +146,15 @@ def cluster_notes(notes: list[dict]) -> list[dict]:
         })
         
     prompt = (
-        "You are an assistant that organizes notes. Group these notes into logical semantic clusters/topics. "
-        "Each cluster must consist of 2 or more notes that are highly related (e.g. talking about the same project, event, or topic). "
-        "Notes that do not fit into any group should be ignored.\n\n"
-        "Return a JSON object containing a single key 'groups', which is an array of objects. Each group object must have:\n"
-        "- 'topic': a short descriptive title for the group.\n"
-        "- 'summary': a one-sentence consolidated summary of what these notes are collectively about.\n"
-        "- 'note_ids': an array of the note IDs that belong to this group.\n\n"
+        "You are an assistant that organizes notes. Analyze the input notes and perform two tasks:\n\n"
+        "1. Group notes into logical semantic clusters/topics. Each cluster must consist of 2 or more notes that are highly related (e.g. talking about the same project, event, or topic). Notes that do not fit into any group should be left out of the groups.\n"
+        "2. Identify any notes that are empty, contain only transcription errors/artifacts (like 'Thank you for watching', 'you', 'thank you' with no context), or are completely nonsensical (meaningless speech fragments, repetitive syllables, or gibberish that lacks any useful information or context). These notes should be marked as trash.\n\n"
+        "Return a JSON object containing two keys:\n"
+        "- 'groups': an array of objects. Each group object must have:\n"
+        "  - 'topic': a short descriptive title for the group.\n"
+        "  - 'summary': a one-sentence consolidated summary of what these notes are collectively about.\n"
+        "  - 'note_ids': an array of the note IDs that belong to this group.\n"
+        "- 'trash_note_ids': an array of note IDs that are empty or nonsensical and should be deleted.\n\n"
         "Input notes:\n" + json.dumps(notes_data, indent=2) + "\n\n"
         "Return ONLY the valid JSON object, nothing else."
     )
@@ -173,10 +175,13 @@ def cluster_notes(notes: list[dict]) -> list[dict]:
             raw = raw[4:]
     try:
         data = json.loads(raw)
-        return data.get("groups", [])
+        return {
+            "groups": data.get("groups", []),
+            "trash_note_ids": data.get("trash_note_ids", [])
+        }
     except Exception as e:
         print(f"Error parsing clustered groups: {e}")
-        return []
+        return {"groups": [], "trash_note_ids": []}
 
 
 def synthesize_merged_note(notes: list[dict]) -> str:

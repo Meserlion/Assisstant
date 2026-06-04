@@ -270,7 +270,6 @@ class MergeGroupRequest(BaseModel):
 def list_note_groups():
     db = get_db()
     rows = db.execute("SELECT * FROM notes WHERE tags NOT LIKE '%\"calendar\"%'").fetchall()
-    db.close()
     
     notes_list = [
         {
@@ -282,7 +281,59 @@ def list_note_groups():
         }
         for r in rows
     ]
-    groups = claude_service.cluster_notes(notes_list)
+    
+    # 1. Programmatic cleanup of empty/obvious noise notes
+    programmatic_trash_ids = []
+    active_notes = []
+    
+    for note in notes_list:
+        text = note["raw_text"].strip()
+        cleaned = text.lower().rstrip(".").rstrip("?").rstrip("!").strip()
+        
+        is_empty = not text
+        is_noise = cleaned in {
+            "you", "thank you", "thank you.", "bye", "bye bye", "goodbye",
+            "hello", "hi", "ok", "okay", "yeah", "yes", "no", "uh", "um", "ah",
+            "oh", "thanks", "thanks.", "yep", "yup", "testing", "test", "testing testing",
+            "thank you for watching", "thank you for watching.", "watching"
+        }
+        
+        if is_empty or is_noise:
+            programmatic_trash_ids.append(note["id"])
+        else:
+            active_notes.append(note)
+            
+    # Delete programmatic trash from database and vector store
+    if programmatic_trash_ids:
+        placeholders = ",".join("?" * len(programmatic_trash_ids))
+        db.execute(f"DELETE FROM notes WHERE id IN ({placeholders})", programmatic_trash_ids)
+        db.commit()
+        for trash_id in programmatic_trash_ids:
+            try:
+                chroma_service.delete_note(trash_id)
+            except Exception as e:
+                print(f"Error deleting programmatic trash note from Chroma: {e}")
+                
+    db.close()
+    
+    # 2. LLM-based semantic trash detection & clustering
+    result = claude_service.cluster_notes(active_notes)
+    groups = result.get("groups", [])
+    llm_trash_ids = result.get("trash_note_ids", [])
+    
+    # Delete LLM trash from database and vector store
+    if llm_trash_ids:
+        db = get_db()
+        placeholders = ",".join("?" * len(llm_trash_ids))
+        db.execute(f"DELETE FROM notes WHERE id IN ({placeholders})", llm_trash_ids)
+        db.commit()
+        db.close()
+        for trash_id in llm_trash_ids:
+            try:
+                chroma_service.delete_note(trash_id)
+            except Exception as e:
+                print(f"Error deleting LLM trash note from Chroma: {e}")
+                
     return [
         NoteGroupResponse(
             topic=g["topic"],
