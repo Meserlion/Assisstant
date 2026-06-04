@@ -96,6 +96,9 @@ QUERY_SYSTEM_PROMPT = (
     "Be concise and direct. If the notes and schedule don't contain relevant info, say so."
 )
 
+# Cached system prompt block — reused across every RAG call in a session
+_CACHED_SYSTEM = [{"type": "text", "text": QUERY_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}]
+
 
 def _build_query_messages(query: str, context_notes: list[dict], history: list[dict], schedule_context: str) -> list[dict]:
     notes_text = "\n\n".join(f"[{n['created_at']}] {n['raw_text']}" for n in context_notes)
@@ -108,7 +111,14 @@ def _build_query_messages(query: str, context_notes: list[dict], history: list[d
                 expected_role = "assistant" if expected_role == "user" else "user"
     if expected_role == "assistant" and cleaned:
         cleaned.pop()
-    cleaned.append({"role": "user", "content": f"Query: {query}\n\nNotes:\n{notes_text}\n{schedule_context}"})
+    # Split into a cacheable context block + a dynamic query block so repeated
+    # note context (same search results across follow-up questions) hits cache.
+    context_text = f"Notes:\n{notes_text}\n{schedule_context}".strip()
+    user_content = []
+    if context_text:
+        user_content.append({"type": "text", "text": context_text, "cache_control": {"type": "ephemeral"}})
+    user_content.append({"type": "text", "text": f"Query: {query}"})
+    cleaned.append({"role": "user", "content": user_content})
     return cleaned
 
 
@@ -118,7 +128,7 @@ def answer_query(query: str, context_notes: list[dict], history: list[dict] = No
     response = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1024,
-        system=QUERY_SYSTEM_PROMPT,
+        system=_CACHED_SYSTEM,
         messages=messages,
     )
     return response.content[0].text.strip()
@@ -130,7 +140,7 @@ def stream_answer_query(query: str, context_notes: list[dict], history: list[dic
     with client.messages.stream(
         model="claude-sonnet-4-6",
         max_tokens=1024,
-        system=QUERY_SYSTEM_PROMPT,
+        system=_CACHED_SYSTEM,
         messages=messages,
     ) as stream:
         for text in stream.text_stream:
@@ -165,15 +175,17 @@ def cluster_notes(notes: list[dict]) -> dict:
         "Return ONLY the valid JSON object, nothing else."
     )
     
+    # Cache the full prompt (instructions + notes JSON). On repeat Merge tab visits
+    # where notes haven't changed, the entire call is served from cache.
     response = client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=1024,
         messages=[{
             "role": "user",
-            "content": prompt
+            "content": [{"type": "text", "text": prompt, "cache_control": {"type": "ephemeral"}}]
         }]
     )
-    
+
     raw = response.content[0].text.strip()
     if raw.startswith("```"):
         raw = raw.split("```")[1]
