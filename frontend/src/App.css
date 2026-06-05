@@ -1,31 +1,31 @@
 /* Premium High-Fidelity Design System for Assistant */
 
 :root {
-  --bg: #070913;
-  --surface: rgba(22, 28, 45, 0.45);
-  --surface-hover: rgba(28, 36, 58, 0.6);
+  --bg: #0d0907;
+  --surface: rgba(26, 18, 14, 0.5);
+  --surface-hover: rgba(34, 24, 18, 0.65);
   --border: rgba(255, 255, 255, 0.08);
-  --border-focus: rgba(99, 102, 241, 0.5);
+  --border-focus: rgba(249, 115, 22, 0.5);
   --text: #f8fafc;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
   
   /* Gradients */
-  --accent-grad: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
-  --accent-grad-hover: linear-gradient(135deg, #4f46e5 0%, #9333ea 100%);
+  --accent-grad: linear-gradient(135deg, #f97316 0%, #ef4444 100%);
+  --accent-grad-hover: linear-gradient(135deg, #ea6d0d 0%, #dc2626 100%);
   --danger-grad: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
   --success-grad: linear-gradient(135deg, #10b981 0%, #059669 100%);
   --glass-grad: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
 
   /* Accents */
-  --accent: #6366f1;
+  --accent: #f97316;
   --danger: #f43f5e;
   --success: #10b981;
   --warning: #f59e0b;
   
-  --tag-bg: rgba(99, 102, 241, 0.15);
-  --tag-text: #a5b4fc;
-  --tag-border: rgba(99, 102, 241, 0.25);
+  --tag-bg: rgba(249, 115, 22, 0.12);
+  --tag-text: #fdba74;
+  --tag-border: rgba(249, 115, 22, 0.25);
   
   /* Timing functions */
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
@@ -41,8 +41,8 @@ body::before {
   width: 100vw;
   height: 100vh;
   background: 
-    radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.08) 0%, transparent 40%),
-    radial-gradient(circle at 90% 80%, rgba(168, 85, 247, 0.08) 0%, transparent 45%);
+    radial-gradient(circle at 10% 20%, rgba(249, 115, 22, 0.09) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(239, 68, 68, 0.07) 0%, transparent 45%);
   z-index: -2;
   pointer-events: none;
 }
@@ -85,8 +85,8 @@ body::after {
 }
 
 .report-btn:hover {
-  border-color: rgba(99, 102, 241, 0.5);
-  color: #a5b4fc;
+  border-color: rgba(249, 115, 22, 0.5);
+  color: #fdba74;
 }
 
 .report-form {
@@ -110,7 +110,7 @@ body::after {
 .report-form input:focus,
 .report-form textarea:focus {
   outline: none;
-  border-color: rgba(99, 102, 241, 0.5);
+  border-color: rgba(249, 115, 22, 0.5);
 }
 
 /* Header & Nav */
@@ -123,7 +123,7 @@ header {
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
-  background: rgba(7, 9, 19, 0.8);
+  background: rgba(13, 9, 7, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   z-index: 100;
@@ -134,7 +134,7 @@ header h1 {
   font-size: 1.5rem;
   font-weight: 800;
   letter-spacing: -0.02em;
-  background: linear-gradient(to right, #ffffff, #a5b4fc);
+  background: linear-gradient(to right, #ffffff, #fdba74);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   display: flex;
@@ -145,7 +145,7 @@ header h1 {
 header h1::before {
   content: "✨";
   font-size: 1.25rem;
-  text-shadow: 0 0 10px rgba(99, 102, 241, 0.6);
+  text-shadow: 0 0 10px rgba(249, 115, 22, 0.6);
 }
 
 nav {
@@ -228,7 +228,7 @@ main {
   border-color: rgba(99, 102, 241, 0.35);
   background: var(--surface-hover);
   transform: translateY(-2px);
-  box-shadow: 0 12px 40px 0 rgba(99, 102, 241, 0.15);
+  box-shadow: 0 12px 40px 0 rgba(249, 115, 22, 0.12);
 }
 
 .voice-btn:active:not(:disabled) {
@@ -395,14 +395,14 @@ main {
 }
 
 .tag:hover {
-  background: rgba(99, 102, 241, 0.25);
-  border-color: rgba(99, 102, 241, 0.4);
+  background: rgba(249, 115, 22, 0.25);
+  border-color: rgba(249, 115, 22, 0.4);
 }
 
 .tag-active {
   background: rgba(99, 102, 241, 0.35);
   border-color: rgba(99, 102, 241, 0.7);
-  color: #a5b4fc;
+  color: #fdba74;
 }
 
 .notes-toolbar {
@@ -434,8 +434,8 @@ main {
 }
 
 .mode-toggle-btn:hover, .mode-toggle-btn.active {
-  border-color: rgba(99, 102, 241, 0.5);
-  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(249, 115, 22, 0.5);
+  background: rgba(249, 115, 22, 0.12);
 }
 
 .text-capture-form {
@@ -459,7 +459,7 @@ main {
 
 .text-capture-form textarea:focus {
   outline: none;
-  border-color: rgba(99, 102, 241, 0.5);
+  border-color: rgba(249, 115, 22, 0.5);
 }
 
 .text-capture-form .voice-btn {
@@ -498,7 +498,7 @@ main {
 
 .ai-rewrite-row input:focus {
   outline: none;
-  border-color: rgba(99, 102, 241, 0.5);
+  border-color: rgba(249, 115, 22, 0.5);
 }
 
 .ai-apply-btn {
@@ -523,8 +523,8 @@ main {
 }
 
 .icon-btn:hover:not(:disabled) {
-  border-color: rgba(99, 102, 241, 0.5);
-  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(249, 115, 22, 0.5);
+  background: rgba(249, 115, 22, 0.12);
 }
 
 .icon-btn:disabled {
@@ -551,7 +551,7 @@ main {
 
 .split-form textarea:focus {
   outline: none;
-  border-color: rgba(99, 102, 241, 0.5);
+  border-color: rgba(249, 115, 22, 0.5);
 }
 
 .split-divider {
@@ -580,16 +580,16 @@ main {
 }
 
 .export-btn:hover {
-  border-color: rgba(99, 102, 241, 0.5);
-  color: #a5b4fc;
+  border-color: rgba(249, 115, 22, 0.5);
+  color: #fdba74;
 }
 
 .tag-filter-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: rgba(99, 102, 241, 0.12);
-  border: 1px solid rgba(99, 102, 241, 0.3);
+  background: rgba(249, 115, 22, 0.12);
+  border: 1px solid rgba(249, 115, 22, 0.3);
   border-radius: 10px;
   padding: 8px 14px;
   font-size: 0.85rem;
@@ -601,7 +601,7 @@ main {
 .clear-filter-btn {
   background: none;
   border: none;
-  color: #a5b4fc;
+  color: #fdba74;
   cursor: pointer;
   font-size: 0.8rem;
   padding: 2px 6px;
@@ -610,7 +610,7 @@ main {
 }
 
 .clear-filter-btn:hover {
-  background: rgba(99, 102, 241, 0.2);
+  background: rgba(249, 115, 22, 0.2);
 }
 
 /* Query panel */
@@ -654,7 +654,7 @@ main {
   outline: none;
   border-color: var(--accent);
   background: rgba(255, 255, 255, 0.05);
-  box-shadow: 0 0 15px rgba(99, 102, 241, 0.15), inset 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0 15px rgba(249, 115, 22, 0.12), inset 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .text-query-form button,
@@ -669,7 +669,7 @@ main {
   font-size: 0.95rem;
   cursor: pointer;
   transition: all 0.25s var(--ease);
-  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 4px 15px rgba(249, 115, 22, 0.3);
 }
 
 .text-query-form button:hover:not(:disabled),
@@ -910,7 +910,7 @@ details summary:hover {
 
 .notif-banner button {
   background: var(--warning);
-  color: #070913;
+  color: #0d0907;
   border: none;
   font-family: 'Outfit', sans-serif;
   font-weight: 700;
@@ -1030,7 +1030,7 @@ section:nth-of-type(3) .event-card::before {
 .bottom-bar .status,
 .bottom-bar .error {
   margin: 0;
-  text-shadow: 0 2px 4px rgba(7, 9, 19, 0.8);
+  text-shadow: 0 2px 4px rgba(13, 9, 7, 0.85);
 }
 
 /* Consolidate Tab Styling */
@@ -1239,9 +1239,9 @@ section:nth-of-type(3) .event-card::before {
 }
 
 .calendar-day.selected {
-  background: rgba(99, 102, 241, 0.08);
+  background: rgba(249, 115, 22, 0.09);
   border-color: var(--accent);
-  box-shadow: 0 0 12px rgba(99, 102, 241, 0.25);
+  box-shadow: 0 0 12px rgba(249, 115, 22, 0.25);
 }
 
 .calendar-day.today {
@@ -1604,7 +1604,7 @@ section:nth-of-type(3) .event-card::before {
 
 .reminder-btn {
   background: rgba(99, 102, 241, 0.05);
-  border: 1px solid rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(249, 115, 22, 0.12);
   color: rgba(129, 140, 248, 0.85);
   font-size: 0.9rem;
   cursor: pointer;
@@ -1621,7 +1621,7 @@ section:nth-of-type(3) .event-card::before {
   background: var(--accent-grad);
   color: #ffffff;
   border-color: transparent;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
 }
 
 .reminder-btn:disabled {
@@ -1689,7 +1689,7 @@ section:nth-of-type(3) .event-card::before {
 }
 
 .modal-container {
-  background: rgba(22, 28, 45, 0.9);
+  background: rgba(26, 18, 14, 0.9);
   border: 1px solid var(--border);
   border-radius: 24px;
   padding: 24px;
@@ -1843,7 +1843,7 @@ section:nth-of-type(3) .event-card::before {
 .reminder-checkbox:checked {
   background: var(--accent-grad);
   border-color: transparent;
-  box-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 0 8px rgba(249, 115, 22, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2105,50 +2105,4 @@ section:nth-of-type(3) .event-card::before {
   cursor: pointer;
   transition: background 0.2s;
 }
-.archive-toggle-btn:hover, .archive-toggle-btn.active {
-  background: rgba(16,185,129,0.22);
-  border-color: rgba(16,185,129,0.5);
-}
-
-/* ── Pin button ── */
-.pin-btn {
-  background: transparent;
-  border: none;
-  font-size: 1rem;
-  cursor: pointer;
-  opacity: 0.4;
-  transition: opacity 0.2s, transform 0.2s;
-  padding: 2px;
-}
-.pin-btn:hover { opacity: 0.8; }
-.pin-btn.pin-active { opacity: 1; transform: rotate(-30deg); }
-
-/* ── Tag count badge ── */
-.tag-count {
-  font-size: 0.65rem;
-  font-weight: 700;
-  margin-left: 3px;
-  opacity: 0.7;
-}
-
-/* ── Audio player on note card ── */
-.note-audio {
-  width: 100%;
-  margin-top: 10px;
-  height: 32px;
-  border-radius: 8px;
-  accent-color: var(--accent);
-}
-
-/* ── Recurrence select in CalendarTab ── */
-.recurrence-select {
-  background: rgba(255,255,255,0.05);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  color: var(--text);
-  font-size: 0.85rem;
-  padding: 8px 10px;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.recurrence-select:focus { outline: none; border-color: var(--accent); }
+.archive-toggle-btn:hover, 
