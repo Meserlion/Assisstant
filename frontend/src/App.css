@@ -2105,4 +2105,50 @@ section:nth-of-type(3) .event-card::before {
   cursor: pointer;
   transition: background 0.2s;
 }
-.archive-toggle-btn:hover, 
+.archive-toggle-btn:hover, .archive-toggle-btn.active {
+  background: rgba(16,185,129,0.22);
+  border-color: rgba(16,185,129,0.5);
+}
+
+/* ── Pin button ── */
+.pin-btn {
+  background: transparent;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity 0.2s, transform 0.2s;
+  padding: 2px;
+}
+.pin-btn:hover { opacity: 0.8; }
+.pin-btn.pin-active { opacity: 1; transform: rotate(-30deg); }
+
+/* ── Tag count badge ── */
+.tag-count {
+  font-size: 0.65rem;
+  font-weight: 700;
+  margin-left: 3px;
+  opacity: 0.7;
+}
+
+/* ── Audio player on note card ── */
+.note-audio {
+  width: 100%;
+  margin-top: 10px;
+  height: 32px;
+  border-radius: 8px;
+  accent-color: var(--accent);
+}
+
+/* ── Recurrence select in CalendarTab ── */
+.recurrence-select {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 0.85rem;
+  padding: 8px 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.recurrence-select:focus { outline: none; border-color: var(--accent); }
