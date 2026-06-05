@@ -2026,6 +2026,20 @@ section:nth-of-type(3) .event-card::before {
   overflow: hidden;
   border-radius: 16px;
 }
+.note-card-archive-zone {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 100px;
+  background: #10b981;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  border-radius: 16px;
+}
 .note-card-delete-zone {
   position: absolute;
   right: 0; top: 0; bottom: 0;
@@ -2079,6 +2093,22 @@ section:nth-of-type(3) .event-card::before {
   transition: background 0.2s;
 }
 .bulk-delete-btn:hover { background: rgba(239,68,68,0.28); }
+
+.archive-toggle-btn {
+  background: rgba(16,185,129,0.1);
+  border: 1px solid rgba(16,185,129,0.3);
+  border-radius: 10px;
+  color: #6ee7b7;
+  font-size: 0.83rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.archive-toggle-btn:hover, .archive-toggle-btn.active {
+  background: rgba(16,185,129,0.22);
+  border-color: rgba(16,185,129,0.5);
+}
 
 /* ── Pin button ── */
 .pin-btn {

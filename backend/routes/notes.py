@@ -30,6 +30,7 @@ class NoteResponse(BaseModel):
     tags: list[str]
     summary: str
     pinned: bool = False
+    archived: bool = False
     audio_url: str | None = None
 
 
@@ -105,7 +106,7 @@ def _save_note_from_text(text: str, client_timezone: str = None, client_local_ti
                 except Exception as e:
                     print(f"Failed to sync auto-reminder to Google Calendar: {e}")
 
-    return NoteResponse(id=note_id, created_at=created_at, raw_text=text, tags=tags, summary=summary, pinned=False, audio_url=None)
+    return NoteResponse(id=note_id, created_at=created_at, raw_text=text, tags=tags, summary=summary, pinned=False, archived=False, audio_url=None)
 
 
 @router.post("/capture", response_model=NoteResponse, dependencies=[Depends(verify_key)])
@@ -155,25 +156,28 @@ def create_text_note(req: TextNoteRequest):
     return _save_note_from_text(req.text.strip(), req.client_timezone, req.client_local_time)
 
 
+def _row_to_note(r) -> NoteResponse:
+    return NoteResponse(
+        id=r["id"],
+        created_at=r["created_at"],
+        raw_text=r["raw_text"],
+        tags=json.loads(r["tags"]),
+        summary=r["summary"],
+        pinned=bool(r["pinned"]),
+        archived=bool(r["archived"]),
+        audio_url=f"/api/notes/{r['id']}/audio" if r["audio_path"] else None,
+    )
+
+
 @router.get("/", response_model=list[NoteResponse], dependencies=[Depends(verify_key)])
-def list_notes(limit: int = 50, offset: int = 0):
+def list_notes(limit: int = 50, offset: int = 0, archived: bool = False):
     db = get_db()
     rows = db.execute(
-        "SELECT * FROM notes WHERE tags NOT LIKE '%\"calendar\"%' ORDER BY pinned DESC, created_at DESC LIMIT ? OFFSET ?", (limit, offset)
+        "SELECT * FROM notes WHERE tags NOT LIKE '%\"calendar\"%' AND archived = ? ORDER BY pinned DESC, created_at DESC LIMIT ? OFFSET ?",
+        (int(archived), limit, offset)
     ).fetchall()
     db.close()
-    return [
-        NoteResponse(
-            id=r["id"],
-            created_at=r["created_at"],
-            raw_text=r["raw_text"],
-            tags=json.loads(r["tags"]),
-            summary=r["summary"],
-            pinned=bool(r["pinned"]),
-            audio_url=f"/api/notes/{r['id']}/audio" if r["audio_path"] else None,
-        )
-        for r in rows
-    ]
+    return [_row_to_note(r) for r in rows]
 
 
 @router.delete("/{note_id}", dependencies=[Depends(verify_key)])
@@ -198,11 +202,23 @@ def pin_note(note_id: str, body: PinRequest):
     db.close()
     if not row:
         raise HTTPException(status_code=404, detail="Note not found")
-    return NoteResponse(
-        id=row["id"], created_at=row["created_at"], raw_text=row["raw_text"],
-        tags=json.loads(row["tags"]), summary=row["summary"], pinned=bool(row["pinned"]),
-        audio_url=f"/api/notes/{row['id']}/audio" if row["audio_path"] else None,
-    )
+    return _row_to_note(row)
+
+
+class ArchiveRequest(BaseModel):
+    archived: bool
+
+
+@router.patch("/{note_id}/archive", response_model=NoteResponse, dependencies=[Depends(verify_key)])
+def archive_note(note_id: str, body: ArchiveRequest):
+    db = get_db()
+    db.execute("UPDATE notes SET archived = ? WHERE id = ?", (int(body.archived), note_id))
+    db.commit()
+    row = db.execute("SELECT * FROM notes WHERE id = ?", (note_id,)).fetchone()
+    db.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Note not found")
+    return _row_to_note(row)
 
 
 @router.get("/{note_id}/audio", dependencies=[Depends(verify_key)])

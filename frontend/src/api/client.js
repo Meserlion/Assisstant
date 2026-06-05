@@ -54,8 +54,8 @@ export async function captureNote(audioBlob) {
   return request('/notes/capture', { method: 'POST', body: form })
 }
 
-export async function listNotes(limit = 50, offset = 0) {
-  return request(`/notes/?limit=${limit}&offset=${offset}`)
+export async function listNotes(limit = 50, offset = 0, archived = false) {
+  return request(`/notes/?limit=${limit}&offset=${offset}&archived=${archived}`)
 }
 
 export async function deleteNote(id) {
@@ -170,6 +170,14 @@ export async function pinNote(id, pinned) {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ pinned }),
+  })
+}
+
+export async function archiveNote(id, archived = true) {
+  return request(`/notes/${id}/archive`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ archived }),
   })
 }
 

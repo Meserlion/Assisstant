@@ -1,13 +1,14 @@
 import { useState, useRef } from 'react'
 import { createReminderFromText } from '../api/calendarClient'
 
-export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTag, tagCounts = {}, selected, onSelect, onPin }) {
+export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTag, tagCounts = {}, selected, onSelect, onPin, onArchive, isArchived }) {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
   const [swipeOffset, setSwipeOffset] = useState(0)
   const touchStartX = useRef(null)
   const deletingRef = useRef(false)
+  const archivingRef = useRef(false)
 
   const date = new Date(note.created_at).toLocaleString()
 
@@ -33,12 +34,16 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
     if (touchStartX.current === null) return
     const delta = e.touches[0].clientX - touchStartX.current
     if (delta < 0) setSwipeOffset(Math.max(delta, -100))
+    else if (delta > 0 && onArchive) setSwipeOffset(Math.min(delta, 100))
   }
 
   function handleTouchEnd() {
     if (swipeOffset < -60 && !deletingRef.current) {
       deletingRef.current = true
       onDelete(note.id)
+    } else if (swipeOffset > 60 && onArchive && !archivingRef.current) {
+      archivingRef.current = true
+      onArchive(note.id)
     }
     setSwipeOffset(0)
     touchStartX.current = null
@@ -46,6 +51,7 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
 
   return (
     <div className="note-card-wrapper">
+      <div className="note-card-archive-zone" aria-hidden="true">{isArchived ? 'Unarchive' : 'Archive'}</div>
       <div className="note-card-delete-zone" aria-hidden="true">Delete</div>
       <div
         className={`note-card${selected ? ' note-card-selected' : ''}`}

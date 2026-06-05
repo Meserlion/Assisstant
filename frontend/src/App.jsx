@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { hasApiKey, captureNote, createTextNote, listNotes, deleteNote, transcribeAudio, pinNote } from './api/client'
+import { hasApiKey, captureNote, createTextNote, listNotes, deleteNote, transcribeAudio, pinNote, archiveNote } from './api/client'
 import { useRecorder } from './hooks/useRecorder'
 import { ApiKeySetup } from './components/ApiKeySetup'
 import { NoteCard } from './components/NoteCard'
@@ -28,11 +28,12 @@ export default function App() {
   const [undoToast, setUndoToast] = useState(null)
   const undoRef = useRef(null)
   const [selectedIds, setSelectedIds] = useState(new Set())
+  const [showArchived, setShowArchived] = useState(false)
 
-  const fetchNotes = useCallback(async () => {
+  const fetchNotes = useCallback(async (archived = false) => {
     setLoading(true)
     try {
-      const data = await listNotes()
+      const data = await listNotes(50, 0, archived)
       setNotes(data)
     } catch (e) {
       setError(e.message)
@@ -44,9 +45,9 @@ export default function App() {
   useEffect(() => {
     if (ready && (tab === 'notes' || tab === 'consolidate')) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      fetchNotes()
+      fetchNotes(showArchived)
     }
-  }, [ready, tab, fetchNotes])
+  }, [ready, tab, showArchived, fetchNotes])
 
   async function handleStop() {
     setCapturing(true)
@@ -107,6 +108,26 @@ export default function App() {
       })
     } catch (e) {
       setError(e.message)
+    }
+  }
+
+  async function handleArchive(id) {
+    setNotes(prev => prev.filter(n => n.id !== id))
+    try {
+      await archiveNote(id, true)
+    } catch (e) {
+      setError(e.message)
+      fetchNotes(showArchived)
+    }
+  }
+
+  async function handleUnarchive(id) {
+    setNotes(prev => prev.filter(n => n.id !== id))
+    try {
+      await archiveNote(id, false)
+    } catch (e) {
+      setError(e.message)
+      fetchNotes(showArchived)
     }
   }
 
@@ -204,6 +225,13 @@ export default function App() {
                     🗑 Delete {selectedIds.size}
                   </button>
                 )}
+                <button
+                  className={`archive-toggle-btn${showArchived ? ' active' : ''}`}
+                  onClick={() => setShowArchived(v => !v)}
+                  title={showArchived ? 'Hide archived' : 'Show archived'}
+                >
+                  {showArchived ? '📂 Archived' : '📁 Archive'}
+                </button>
                 {notes.length > 0 && (
                   <button className="export-btn" onClick={handleExport} title="Export all notes as Markdown">
                     ↓ Export
@@ -228,10 +256,12 @@ export default function App() {
                     selected={selectedIds.has(note.id)}
                     onSelect={handleToggleSelect}
                     onPin={handlePin}
+                    onArchive={showArchived ? handleUnarchive : handleArchive}
+                    isArchived={showArchived}
                   />
                 ))}
               {!loading && notes.filter((n) => !activeTag || n.tags.includes(activeTag)).length === 0 && (
-                <p className="empty">{activeTag ? `No notes tagged "${activeTag}".` : 'No notes yet. Hold the button to record your first one.'}</p>
+                <p className="empty">{activeTag ? `No notes tagged "${activeTag}".` : showArchived ? 'No archived notes.' : 'No notes yet. Hold the button to record your first one.'}</p>
               )}
             </div>
 
