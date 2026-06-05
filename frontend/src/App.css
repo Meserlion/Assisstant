@@ -462,6 +462,23 @@ main {
   border-color: rgba(99, 102, 241, 0.5);
 }
 
+.text-capture-form .voice-btn {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  padding: 0;
+  border-radius: 10px;
+  flex-shrink: 0;
+  font-size: 0;
+  gap: 0;
+}
+.text-capture-form .voice-btn .mic-icon {
+  font-size: 1.2rem;
+}
+.text-capture-form .voice-btn span:not(.mic-icon) {
+  display: none;
+}
+
 .ai-rewrite-row {
   display: flex;
   gap: 8px;
