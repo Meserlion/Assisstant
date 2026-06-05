@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getNoteGroups, cleanupTrashNotes, mergeNoteGroup } from '../api/client'
+import { getNoteGroups, cleanupTrashNotes, mergeNoteGroup, listNotes } from '../api/client'
 
 export function ConsolidateTab({ notes, onMergeSuccess }) {
   const [groups, setGroups] = useState([])
@@ -8,14 +8,24 @@ export function ConsolidateTab({ notes, onMergeSuccess }) {
   const [mergingId, setMergingId] = useState(null)
   const [error, setError] = useState(null)
   const [successMsg, setSuccessMsg] = useState(null)
+  const [includeArchived, setIncludeArchived] = useState(false)
+  const [allNotes, setAllNotes] = useState(notes)
 
-  async function fetchGroups() {
+  async function fetchGroups(withArchived = includeArchived) {
     setLoading(true)
     setError(null)
     try {
-      const data = await getNoteGroups()
+      const [data, archivedNotes] = await Promise.all([
+        getNoteGroups(withArchived),
+        withArchived ? listNotes(200, 0, true) : Promise.resolve([]),
+      ])
       setGroups(data.groups)
       setTrashIds(data.trash_ids || [])
+      const combined = [...notes]
+      for (const n of archivedNotes) {
+        if (!combined.find((x) => x.id === n.id)) combined.push(n)
+      }
+      setAllNotes(combined)
     } catch (e) {
       setError(e.message)
     } finally {
@@ -26,6 +36,7 @@ export function ConsolidateTab({ notes, onMergeSuccess }) {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchGroups()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function handleCleanupTrash() {
@@ -48,9 +59,7 @@ export function ConsolidateTab({ notes, onMergeSuccess }) {
       try {
         await mergeNoteGroup(group.note_ids, group.topic, group.summary)
         setSuccessMsg(`Successfully consolidated notes into "${group.topic}"!`)
-        // Filter out this group
         setGroups((prev) => prev.filter((g) => g.topic !== group.topic))
-        // Trigger parent notes refresh
         if (onMergeSuccess) onMergeSuccess()
       } catch (e) {
         setError(e.message)
@@ -60,7 +69,7 @@ export function ConsolidateTab({ notes, onMergeSuccess }) {
     }
   }
 
-  if (loading) return <p className="status">Scanning notes for topics…</p>
+  if (loading) return <p className="status">Scanning notes for topics...</p>
 
   return (
     <div className="consolidate-tab">
@@ -68,6 +77,25 @@ export function ConsolidateTab({ notes, onMergeSuccess }) {
       <p className="description">
         AI analyzes your notes to find semantically related items. You can merge them into a single, clean, chronological summary.
       </p>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={includeArchived}
+            onChange={(e) => {
+              setIncludeArchived(e.target.checked)
+              fetchGroups(e.target.checked)
+            }}
+          />
+          Include archived notes
+        </label>
+        {includeArchived && (
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+            Merged results always appear in active notes
+          </span>
+        )}
+      </div>
 
       {error && <p className="error">{error}</p>}
       {successMsg && <p className="status" style={{ color: 'var(--success)', fontWeight: 'bold' }}>{successMsg}</p>}
@@ -82,7 +110,7 @@ export function ConsolidateTab({ notes, onMergeSuccess }) {
       <div className="groups-list">
         {groups.map((group) => {
           const matchedNotes = group.note_ids
-            .map((id) => notes.find((n) => n.id === id))
+            .map((id) => allNotes.find((n) => n.id === id))
             .filter(Boolean)
 
           if (matchedNotes.length === 0) return null
@@ -90,18 +118,16 @@ export function ConsolidateTab({ notes, onMergeSuccess }) {
           return (
             <div key={group.topic} className="group-card">
               <div className="group-header">
-                <span className="group-topic">📁 {group.topic}</span>
+                <span className="group-topic">&#128193; {group.topic}</span>
                 <button
                   className="accent-btn"
                   onClick={() => handleMerge(group)}
                   disabled={mergingId !== null}
                 >
-                  {mergingId === group.topic ? 'Consolidating…' : 'Consolidate'}
+                  {mergingId === group.topic ? 'Consolidating...' : 'Consolidate'}
                 </button>
               </div>
-              
               <p className="group-summary">{group.summary}</p>
-              
               <details className="group-details">
                 <summary>{matchedNotes.length} source note{matchedNotes.length > 1 ? 's' : ''}</summary>
                 <div className="nested-notes">
@@ -109,6 +135,7 @@ export function ConsolidateTab({ notes, onMergeSuccess }) {
                     <div key={n.id} className="nested-note-card">
                       <div className="nested-note-header">
                         <span className="note-date">{new Date(n.created_at).toLocaleString()}</span>
+                        {n.archived && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '6px' }}>(archived)</span>}
                       </div>
                       <p className="note-summary">{n.summary}</p>
                       <p className="note-text">{n.raw_text}</p>
@@ -117,15 +144,4 @@ export function ConsolidateTab({ notes, onMergeSuccess }) {
                 </div>
               </details>
             </div>
-          )
-        })}
-
-        {groups.length === 0 && (
-          <p className="empty">
-            All caught up! No duplicate or highly similar notes found to consolidate right now.
-          </p>
-        )}
-      </div>
-    </div>
-  )
-}
+         

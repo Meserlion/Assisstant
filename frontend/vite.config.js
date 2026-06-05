@@ -23,16 +23,10 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
         navigateFallbackDenylist: [/^\/api/],
-      },
-    }),
-  ],
-  server: {
-    proxy: {
-      '/api': {
-        target: 'http://localhost:8000',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
-      },
-    },
-  },
-})
+        runtimeCaching: [
+          {
+            // Always go to the network for API calls (audio range requests need this)
+            urlPattern: /^\/api\//,
+            handler: 'NetworkOnly',
+          },
+        

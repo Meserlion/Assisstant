@@ -106,12 +106,16 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
         </div>
 
         {note.audio_url && (
-          <audio className="note-audio" src={note.audio_url} controls preload="none" />
+          <audio
+            className="note-audio"
+            src={`${note.audio_url}?key=${encodeURIComponent(localStorage.getItem('api_key') || '')}`}
+            controls
+            preload="metadata"
+          />
         )}
 
         {result && <p className="card-status success">{result}</p>}
         {error && <p className="card-status error">{error}</p>}
       </div>
     </div>
-  )
-}
+  
