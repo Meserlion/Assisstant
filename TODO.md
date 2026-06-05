@@ -2,7 +2,35 @@
 
 ## Pending
 
-*(backlog clear)*
+### 1. Full-text search bar
+Quick filter across raw note text, separate from the semantic Ask tab. Frontend only: filter notes by `raw_text.toLowerCase().includes(query)` as the user types. No backend change needed.
+
+### 2. Note colors
+Color-code cards beyond tags (red = urgent, green = done, etc.). Backend: add a `color` column to notes. Frontend: color swatch picker in EditNoteModal, colored left-border on NoteCard.
+
+### 3. Note aging indicator
+Subtle visual on cards not touched in 7+ days to surface forgotten notes. Frontend only: compare `note.created_at` to today, add a `.note-aged` CSS class with a muted border or opacity fade after 7 days.
+
+### 4. Notebooks / collections
+Group notes into separate spaces (Work, Personal, Ideas). Backend: add a `notebook` column; frontend: notebook selector in the header, filter notes by active notebook.
+
+### 5. Daily digest push notification
+Morning push at a configurable time summarising today's schedule + a recap of recent notes. Backend: add a scheduler job that calls Claude-Haiku to produce a digest and sends it via the existing push service.
+
+### 6. Save Ask conversation as a note
+One button to persist a useful chat thread to the notes list. Frontend: "Save chat" button in QueryPanel that POSTs the conversation as a single text note.
+
+### 7. Add calendar event from Ask tab
+"Schedule X on Thursday" creates a Google Calendar event via voice or text in the Ask tab. Backend: extend the RAG answer path to detect scheduling intent and call the existing `google_calendar.create_event`.
+
+### 8. Weekly recap note
+Auto-generated end-of-week summary note from the past 7 days of notes. Backend: scheduler job every Sunday that calls Claude-Haiku and inserts the result as a note tagged `["recap"]`.
+
+### 9. Share note
+Copy a note as plain text or open the native share sheet on mobile. Frontend only: `navigator.share()` with fallback to clipboard copy, triggered by a share icon on NoteCard.
+
+### 10. Offline indicator
+PWA already caches assets but there's no UI feedback when disconnected. Frontend: listen to `window.online/offline` events and show a small banner when offline.
 
 ## Shipped
 
