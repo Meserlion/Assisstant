@@ -22,6 +22,7 @@ export function CalendarTab() {
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [quickAddText, setQuickAddText] = useState('')
+  const [recurrence, setRecurrence] = useState('none')
   
   const { recording, start, stop } = useRecorder()
 
@@ -133,9 +134,11 @@ export function CalendarTab() {
       const day = String(selectedDate.getDate()).padStart(2, '0')
       const dateStr = `${year}-${month}-${day}`
       
-      const reminder = await createReminderFromText(quickAddText.trim(), dateStr)
-      setLastResult(`Reminder set: "${reminder.title}" at ${new Date(reminder.remind_at).toLocaleString()}`)
+      const reminder = await createReminderFromText(quickAddText.trim(), dateStr, recurrence)
+      const recLabel = recurrence !== 'none' ? ` (${recurrence})` : ''
+      setLastResult(`Reminder set: "${reminder.title}" at ${new Date(reminder.remind_at).toLocaleString()}${recLabel}`)
       setQuickAddText('')
+      setRecurrence('none')
       await loadAll()
     } catch (e) {
       setError(e.message)
@@ -345,6 +348,17 @@ export function CalendarTab() {
                     onChange={(e) => setQuickAddText(e.target.value)}
                     disabled={saving}
                   />
+                  <select
+                    className="recurrence-select"
+                    value={recurrence}
+                    onChange={(e) => setRecurrence(e.target.value)}
+                    disabled={saving}
+                    title="Repeat"
+                  >
+                    <option value="none">Once</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                  </select>
                   <button type="submit" disabled={saving || !quickAddText.trim()}>Add</button>
                 </form>
                 <div className="voice-mic-wrapper">

@@ -29,6 +29,8 @@ class NoteResponse(BaseModel):
     raw_text: str
     tags: list[str]
     summary: str
+    pinned: bool = False
+    audio_url: str | None = None
 
 
 class NoteUpdateRequest(BaseModel):
@@ -48,6 +50,14 @@ class QueryResponse(BaseModel):
     sources: list[NoteResponse]
 
 
+class PinRequest(BaseModel):
+    pinned: bool
+
+
+class CleanupRequest(BaseModel):
+    note_ids: list[str] = []
+
+
 def _save_note_from_text(text: str, client_timezone: str = None, client_local_time: str = None) -> NoteResponse:
     """Shared helper: analyse text, persist to SQLite + Chroma, auto-create reminder if needed."""
     analysis = claude_service.tag_note(text, client_timezone, client_local_time)
@@ -65,6 +75,8 @@ def _save_note_from_text(text: str, client_timezone: str = None, client_local_ti
     db.close()
 
     chroma_service.add_note(note_id, text, {"created_at": created_at, "tags": json.dumps(tags), "summary": summary})
+
+    audio_path = None  # populated by capture endpoint when audio is saved
 
     if analysis["is_reminder"] and analysis["reminder_details"]:
         rem_details = analysis["reminder_details"]
@@ -93,7 +105,7 @@ def _save_note_from_text(text: str, client_timezone: str = None, client_local_ti
                 except Exception as e:
                     print(f"Failed to sync auto-reminder to Google Calendar: {e}")
 
-    return NoteResponse(id=note_id, created_at=created_at, raw_text=text, tags=tags, summary=summary)
+    return NoteResponse(id=note_id, created_at=created_at, raw_text=text, tags=tags, summary=summary, pinned=False, audio_url=None)
 
 
 @router.post("/capture", response_model=NoteResponse, dependencies=[Depends(verify_key)])
@@ -103,15 +115,31 @@ async def capture_note(
     client_local_time: str = Form(None)
 ):
     suffix = os.path.splitext(audio.filename or "audio.webm")[1] or ".webm"
+    audio_bytes = await audio.read()
+
+    # Transcribe from a temp file
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        async with aiofiles.open(tmp.name, "wb") as f:
-            await f.write(await audio.read())
+        tmp.write(audio_bytes)
         tmp_path = tmp.name
     try:
         text = whisper_service.transcribe(tmp_path)
     finally:
         os.unlink(tmp_path)
-    return _save_note_from_text(text, client_timezone, client_local_time)
+
+    note = _save_note_from_text(text, client_timezone, client_local_time)
+
+    # Persist audio for playback
+    audio_dir = os.path.join(os.path.dirname(settings.sqlite_db_path), "audio")
+    os.makedirs(audio_dir, exist_ok=True)
+    audio_path = os.path.join(audio_dir, f"{note.id}{suffix}")
+    with open(audio_path, "wb") as f:
+        f.write(audio_bytes)
+    db = get_db()
+    db.execute("UPDATE notes SET audio_path = ? WHERE id = ?", (audio_path, note.id))
+    db.commit()
+    db.close()
+
+    return NoteResponse(**{**note.model_dump(), "audio_url": f"/api/notes/{note.id}/audio"})
 
 
 class TextNoteRequest(BaseModel):
@@ -131,7 +159,7 @@ def create_text_note(req: TextNoteRequest):
 def list_notes(limit: int = 50, offset: int = 0):
     db = get_db()
     rows = db.execute(
-        "SELECT * FROM notes WHERE tags NOT LIKE '%\"calendar\"%' ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset)
+        "SELECT * FROM notes WHERE tags NOT LIKE '%\"calendar\"%' ORDER BY pinned DESC, created_at DESC LIMIT ? OFFSET ?", (limit, offset)
     ).fetchall()
     db.close()
     return [
@@ -141,6 +169,8 @@ def list_notes(limit: int = 50, offset: int = 0):
             raw_text=r["raw_text"],
             tags=json.loads(r["tags"]),
             summary=r["summary"],
+            pinned=bool(r["pinned"]),
+            audio_url=f"/api/notes/{r['id']}/audio" if r["audio_path"] else None,
         )
         for r in rows
     ]
@@ -156,6 +186,38 @@ def delete_note(note_id: str):
         raise HTTPException(status_code=404, detail="Note not found")
     chroma_service.delete_note(note_id)
     return {"deleted": note_id}
+
+
+@router.patch("/{note_id}/pin", response_model=NoteResponse, dependencies=[Depends(verify_key)])
+def pin_note(note_id: str, body: PinRequest):
+    pinned = int(body.pinned)
+    db = get_db()
+    db.execute("UPDATE notes SET pinned = ? WHERE id = ?", (pinned, note_id))
+    db.commit()
+    row = db.execute("SELECT * FROM notes WHERE id = ?", (note_id,)).fetchone()
+    db.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Note not found")
+    return NoteResponse(
+        id=row["id"], created_at=row["created_at"], raw_text=row["raw_text"],
+        tags=json.loads(row["tags"]), summary=row["summary"], pinned=bool(row["pinned"]),
+        audio_url=f"/api/notes/{row['id']}/audio" if row["audio_path"] else None,
+    )
+
+
+@router.get("/{note_id}/audio", dependencies=[Depends(verify_key)])
+def get_note_audio(note_id: str):
+    from fastapi.responses import FileResponse
+    db = get_db()
+    row = db.execute("SELECT audio_path FROM notes WHERE id = ?", (note_id,)).fetchone()
+    db.close()
+    if not row or not row["audio_path"]:
+        raise HTTPException(status_code=404, detail="No audio for this note")
+    if not os.path.exists(row["audio_path"]):
+        raise HTTPException(status_code=404, detail="Audio file missing")
+    import mimetypes
+    mime, _ = mimetypes.guess_type(row["audio_path"])
+    return FileResponse(row["audio_path"], media_type=mime or "audio/webm")
 
 
 @router.put("/{note_id}", response_model=NoteResponse, dependencies=[Depends(verify_key)])
@@ -182,7 +244,8 @@ def update_note(note_id: str, req: NoteUpdateRequest):
     chroma_service.delete_note(note_id)
     chroma_service.add_note(note_id, req.text, {"created_at": row["created_at"], "tags": json.dumps(tags), "summary": summary})
 
-    return NoteResponse(id=note_id, created_at=row["created_at"], raw_text=req.text, tags=tags, summary=summary)
+    return NoteResponse(id=note_id, created_at=row["created_at"], raw_text=req.text, tags=tags, summary=summary,
+                        pinned=bool(row["pinned"]), audio_url=f"/api/notes/{note_id}/audio" if row["audio_path"] else None)
 
 
 class RewriteRequest(BaseModel):
@@ -417,9 +480,9 @@ def list_note_groups():
 
 
 @router.post("/groups/cleanup", dependencies=[Depends(verify_key)])
-def cleanup_trash_notes(body: dict):
+def cleanup_trash_notes(body: CleanupRequest):
     """Delete the given note IDs (user explicitly confirms trash before calling this)."""
-    note_ids = body.get("note_ids", [])
+    note_ids = body.note_ids
     if not note_ids:
         return {"deleted": 0}
     _delete_notes(note_ids)

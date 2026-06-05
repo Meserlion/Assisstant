@@ -1907,3 +1907,198 @@ section:nth-of-type(3) .event-card::before {
 }
 
 
+
+/* ── Query panel header ── */
+.query-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.clear-chat-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: rgba(255,255,255,0.5);
+  font-size: 0.8rem;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+.clear-chat-btn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: rgba(255,255,255,0.3);
+}
+.clear-chat-btn:disabled { opacity: 0.3; cursor: default; }
+
+/* ── Shortcut buttons ── */
+.shortcut-btns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.shortcut-btn {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--text);
+  font-size: 0.82rem;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  white-space: nowrap;
+}
+.shortcut-btn:hover:not(:disabled) {
+  background: rgba(255,255,255,0.1);
+  border-color: var(--accent);
+}
+.shortcut-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* ── Markdown inside chat bubbles ── */
+.message-text p { margin: 0 0 8px; }
+.message-text p:last-child { margin-bottom: 0; }
+.message-text ul, .message-text ol { margin: 6px 0 8px 18px; padding: 0; }
+.message-text li { margin-bottom: 4px; }
+.message-text strong { font-weight: 700; }
+.message-text em { font-style: italic; }
+.message-text code {
+  background: rgba(255,255,255,0.1);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: monospace;
+  font-size: 0.88em;
+}
+
+/* ── Undo toast ── */
+.undo-toast {
+  position: fixed;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(30, 36, 54, 0.95);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 0.9rem;
+  color: var(--text);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  backdrop-filter: blur(12px);
+  z-index: 1000;
+  animation: slideUp 0.3s var(--ease);
+}
+.undo-btn {
+  background: var(--accent-grad);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.undo-btn:hover { opacity: 0.85; }
+
+/* ── Note card wrapper (swipe-to-delete) ── */
+.note-card-wrapper {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+}
+.note-card-delete-zone {
+  position: absolute;
+  right: 0; top: 0; bottom: 0;
+  width: 100px;
+  background: #ef4444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  border-radius: 16px;
+}
+.note-card {
+  position: relative;
+  z-index: 1;
+  background: var(--surface);
+}
+
+/* ── Note checkbox (bulk select) ── */
+.note-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.note-card-selected {
+  outline: 2px solid var(--accent);
+}
+
+/* ── Bulk delete button ── */
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bulk-delete-btn {
+  background: rgba(239,68,68,0.15);
+  border: 1px solid rgba(239,68,68,0.4);
+  border-radius: 10px;
+  color: #fca5a5;
+  font-size: 0.83rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.bulk-delete-btn:hover { background: rgba(239,68,68,0.28); }
+
+/* ── Pin button ── */
+.pin-btn {
+  background: transparent;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity 0.2s, transform 0.2s;
+  padding: 2px;
+}
+.pin-btn:hover { opacity: 0.8; }
+.pin-btn.pin-active { opacity: 1; transform: rotate(-30deg); }
+
+/* ── Tag count badge ── */
+.tag-count {
+  font-size: 0.65rem;
+  font-weight: 700;
+  margin-left: 3px;
+  opacity: 0.7;
+}
+
+/* ── Audio player on note card ── */
+.note-audio {
+  width: 100%;
+  margin-top: 10px;
+  height: 32px;
+  border-radius: 8px;
+  accent-color: var(--accent);
+}
+
+/* ── Recurrence select in CalendarTab ── */
+.recurrence-select {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 0.85rem;
+  padding: 8px 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.recurrence-select:focus { outline: none; border-color: var(--accent); }

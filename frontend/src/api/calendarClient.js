@@ -24,7 +24,7 @@ export async function getEvents() {
   return request('/calendar/events')
 }
 
-export async function createReminderFromText(text, selectedDate = null) {
+export async function createReminderFromText(text, selectedDate = null, recurrence = 'none') {
   return request('/calendar/reminder/voice', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -33,6 +33,7 @@ export async function createReminderFromText(text, selectedDate = null) {
       selected_date: selectedDate,
       client_timezone: getClientTimezone(),
       client_local_time: getLocalIsoTime(),
+      recurrence,
     }),
   })
 }

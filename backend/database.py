@@ -18,9 +18,17 @@ def init_db():
             created_at TEXT NOT NULL,
             raw_text TEXT NOT NULL,
             tags TEXT NOT NULL DEFAULT '[]',
-            summary TEXT
+            summary TEXT,
+            pinned INTEGER NOT NULL DEFAULT 0,
+            audio_path TEXT
         )
     """)
+    # Migrate existing databases — ignore if columns already exist
+    for col, definition in [("pinned", "INTEGER NOT NULL DEFAULT 0"), ("audio_path", "TEXT")]:
+        try:
+            conn.execute(f"ALTER TABLE notes ADD COLUMN {col} {definition}")
+        except Exception:
+            pass
     conn.execute("""
         CREATE TABLE IF NOT EXISTS push_subscriptions (
             id TEXT PRIMARY KEY,
@@ -35,9 +43,14 @@ def init_db():
             remind_at TEXT NOT NULL,
             google_event_id TEXT,
             sent INTEGER NOT NULL DEFAULT 0,
-            created_at TEXT NOT NULL
+            created_at TEXT NOT NULL,
+            recurrence TEXT NOT NULL DEFAULT 'none'
         )
     """)
+    try:
+        conn.execute("ALTER TABLE reminders ADD COLUMN recurrence TEXT NOT NULL DEFAULT 'none'")
+    except Exception:
+        pass
     conn.execute("""
         CREATE TABLE IF NOT EXISTS google_tokens (
             id INTEGER PRIMARY KEY CHECK (id = 1),

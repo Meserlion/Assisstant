@@ -7,6 +7,7 @@ scheduler = BackgroundScheduler()
 
 
 def check_reminders():
+    import uuid
     now = datetime.now(timezone.utc)
     window = (now + timedelta(minutes=1)).isoformat()
     db = get_db()
@@ -17,6 +18,15 @@ def check_reminders():
         delivered = send_push(title="Reminder", body=r["title"], reminder_id=r["id"])
         if delivered:
             db.execute("UPDATE reminders SET sent = 1 WHERE id = ?", (r["id"],))
+            recurrence = r["recurrence"] if "recurrence" in r.keys() else "none"
+            if recurrence in ("daily", "weekly"):
+                delta = timedelta(days=1) if recurrence == "daily" else timedelta(weeks=1)
+                next_time = (datetime.fromisoformat(r["remind_at"].replace("Z", "+00:00")) + delta).isoformat()
+                new_id = str(uuid.uuid4())
+                db.execute(
+                    "INSERT INTO reminders (id, title, remind_at, created_at, recurrence) VALUES (?, ?, ?, ?, ?)",
+                    (new_id, r["title"], next_time, now.isoformat(), recurrence),
+                )
     db.commit()
     db.close()
 

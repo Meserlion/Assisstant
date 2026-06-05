@@ -29,6 +29,7 @@ class ReminderRequest(BaseModel):
     selected_date: Optional[str] = None  # Format: YYYY-MM-DD
     client_timezone: Optional[str] = None
     client_local_time: Optional[str] = None
+    recurrence: str = "none"  # "none" | "daily" | "weekly"
 
 
 class EventCreate(BaseModel):
@@ -141,9 +142,10 @@ async def create_reminder_from_text(req: ReminderRequest):
 
     reminder_id = str(uuid.uuid4())
     db = get_db()
+    recurrence = req.recurrence if req.recurrence in ("daily", "weekly") else "none"
     db.execute(
-        "INSERT INTO reminders (id, title, remind_at, created_at) VALUES (?, ?, ?, ?)",
-        (reminder_id, parsed["title"], parsed["remind_at"], datetime.now(timezone.utc).isoformat()),
+        "INSERT INTO reminders (id, title, remind_at, created_at, recurrence) VALUES (?, ?, ?, ?, ?)",
+        (reminder_id, parsed["title"], parsed["remind_at"], datetime.now(timezone.utc).isoformat(), recurrence),
     )
     db.commit()
     db.close()
@@ -157,7 +159,7 @@ async def create_reminder_from_text(req: ReminderRequest):
         db.commit()
         db.close()
 
-    return {"id": reminder_id, "title": parsed["title"], "remind_at": parsed["remind_at"], "google_event_id": event_id}
+    return {"id": reminder_id, "title": parsed["title"], "remind_at": parsed["remind_at"], "google_event_id": event_id, "recurrence": recurrence}
 
 
 @router.get("/reminders", dependencies=[Depends(verify_key)])

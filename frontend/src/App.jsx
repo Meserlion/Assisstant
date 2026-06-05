@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
-import { hasApiKey, captureNote, createTextNote, listNotes, deleteNote, transcribeAudio } from './api/client'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { hasApiKey, captureNote, createTextNote, listNotes, deleteNote, transcribeAudio, pinNote } from './api/client'
 import { useRecorder } from './hooks/useRecorder'
 import { ApiKeySetup } from './components/ApiKeySetup'
 import { NoteCard } from './components/NoteCard'
@@ -25,6 +25,9 @@ export default function App() {
   const [error, setError] = useState(null)
   const { recording, start, stop } = useRecorder()
   const { recording: textRecording, start: textStart, stop: textStop } = useRecorder()
+  const [undoToast, setUndoToast] = useState(null)
+  const undoRef = useRef(null)
+  const [selectedIds, setSelectedIds] = useState(new Set())
 
   const fetchNotes = useCallback(async () => {
     setLoading(true)
@@ -60,12 +63,66 @@ export default function App() {
   }
 
   async function handleDelete(id) {
+    const note = notes.find((n) => n.id === id)
+    if (!note) return
+
+    setNotes((prev) => prev.filter((n) => n.id !== id))
+
+    if (undoRef.current) {
+      clearTimeout(undoRef.current.timerId)
+      try { await deleteNote(undoRef.current.note.id) } catch (e) { void e }
+    }
+
+    const timerId = setTimeout(async () => {
+      setUndoToast(null)
+      undoRef.current = null
+      try {
+        await deleteNote(id)
+      } catch (e) {
+        setError(e.message)
+      }
+    }, 5000)
+
+    const toastState = { note, timerId }
+    setUndoToast(toastState)
+    undoRef.current = toastState
+  }
+
+  function handleUndoDelete() {
+    if (!undoRef.current) return
+    clearTimeout(undoRef.current.timerId)
+    setNotes((prev) => [undoRef.current.note, ...prev])
+    setUndoToast(null)
+    undoRef.current = null
+  }
+
+  async function handlePin(id, pinned) {
     try {
-      await deleteNote(id)
-      setNotes((prev) => prev.filter((n) => n.id !== id))
+      const updated = await pinNote(id, pinned)
+      setNotes(prev => {
+        const without = prev.filter(n => n.id !== id)
+        return pinned
+          ? [updated, ...without]
+          : [...without.filter(n => n.pinned), updated, ...without.filter(n => !n.pinned)]
+      })
     } catch (e) {
       setError(e.message)
     }
+  }
+
+  function handleToggleSelect(id) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  async function handleBulkDelete() {
+    const ids = [...selectedIds]
+    setSelectedIds(new Set())
+    setNotes(prev => prev.filter(n => !ids.includes(n.id)))
+    await Promise.all(ids.map(id => deleteNote(id).catch(() => {})))
   }
 
   async function handleTextSubmit(e) {
@@ -141,11 +198,18 @@ export default function App() {
                   <button className="clear-filter-btn" onClick={() => setActiveTag(null)}>✕ Clear</button>
                 </div>
               ) : <div />}
-              {notes.length > 0 && (
-                <button className="export-btn" onClick={handleExport} title="Export all notes as Markdown">
-                  ↓ Export
-                </button>
-              )}
+              <div className="toolbar-right">
+                {selectedIds.size > 0 && (
+                  <button className="bulk-delete-btn" onClick={handleBulkDelete}>
+                    🗑 Delete {selectedIds.size}
+                  </button>
+                )}
+                {notes.length > 0 && (
+                  <button className="export-btn" onClick={handleExport} title="Export all notes as Markdown">
+                    ↓ Export
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="notes-list">
@@ -160,6 +224,10 @@ export default function App() {
                     onSplit={() => setSplittingNote(note)}
                     onTagClick={(tag) => setActiveTag(tag === activeTag ? null : tag)}
                     activeTag={activeTag}
+                    tagCounts={notes.reduce((acc, n) => { n.tags.forEach(t => { acc[t] = (acc[t] || 0) + 1 }); return acc }, {})}
+                    selected={selectedIds.has(note.id)}
+                    onSelect={handleToggleSelect}
+                    onPin={handlePin}
                   />
                 ))}
               {!loading && notes.filter((n) => !activeTag || n.tags.includes(activeTag)).length === 0 && (
@@ -227,6 +295,13 @@ export default function App() {
         {tab === 'calendar' && <CalendarTab />}
         {tab === 'consolidate' && <ConsolidateTab notes={notes} onMergeSuccess={fetchNotes} />}
       </main>
+
+      {undoToast && (
+        <div className="undo-toast">
+          <span>Note deleted</span>
+          <button onClick={handleUndoDelete} className="undo-btn">Undo</button>
+        </div>
+      )}
 
       {reportOpen && (
         <div className="modal-backdrop">

@@ -165,6 +165,14 @@ export async function cleanupTrashNotes(noteIds) {
   })
 }
 
+export async function pinNote(id, pinned) {
+  return request(`/notes/${id}/pin`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pinned }),
+  })
+}
+
 export async function mergeNoteGroup(noteIds, topic, summary) {
   return request('/notes/merge-group', {
     method: 'POST',

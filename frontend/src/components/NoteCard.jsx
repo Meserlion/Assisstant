@@ -1,10 +1,13 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { createReminderFromText } from '../api/calendarClient'
 
-export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTag }) {
+export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTag, tagCounts = {}, selected, onSelect, onPin }) {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
+  const [swipeOffset, setSwipeOffset] = useState(0)
+  const touchStartX = useRef(null)
+  const deletingRef = useRef(false)
 
   const date = new Date(note.created_at).toLocaleString()
 
@@ -22,51 +25,87 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
     }
   }
 
+  function handleTouchStart(e) {
+    touchStartX.current = e.touches[0].clientX
+  }
+
+  function handleTouchMove(e) {
+    if (touchStartX.current === null) return
+    const delta = e.touches[0].clientX - touchStartX.current
+    if (delta < 0) setSwipeOffset(Math.max(delta, -100))
+  }
+
+  function handleTouchEnd() {
+    if (swipeOffset < -60 && !deletingRef.current) {
+      deletingRef.current = true
+      onDelete(note.id)
+    }
+    setSwipeOffset(0)
+    touchStartX.current = null
+  }
+
   return (
-    <div className="note-card">
-      <div className="note-header">
-        <span className="note-date">{date}</span>
-        <div className="note-actions">
-          <button 
-            className="reminder-btn" 
-            onClick={handleCreateReminder} 
-            disabled={loading} 
-            title="Create a reminder from this note"
-          >
-            {loading ? '⏳' : '🔔'}
-          </button>
-          <button
-            className="edit-btn"
-            onClick={onEdit}
-            title="Edit note"
-          >
-            ✏️
-          </button>
-          <button
-            className="split-btn"
-            onClick={onSplit}
-            title="Split note into two"
-          >
-            ✂️
-          </button>
-          <button className="delete-btn" onClick={() => onDelete(note.id)} aria-label="Delete note">×</button>
+    <div className="note-card-wrapper">
+      <div className="note-card-delete-zone" aria-hidden="true">Delete</div>
+      <div
+        className={`note-card${selected ? ' note-card-selected' : ''}`}
+        style={{ transform: `translateX(${swipeOffset}px)`, transition: swipeOffset === 0 ? 'transform 0.2s ease' : 'none' }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        <div className="note-header">
+          {onSelect && (
+            <input
+              type="checkbox"
+              className="note-checkbox"
+              checked={!!selected}
+              onChange={() => onSelect(note.id)}
+              aria-label="Select note"
+            />
+          )}
+          <span className="note-date">{date}</span>
+          <div className="note-actions">
+            {onPin && (
+              <button
+                className={`pin-btn${note.pinned ? ' pin-active' : ''}`}
+                onClick={() => onPin(note.id, !note.pinned)}
+                title={note.pinned ? 'Unpin note' : 'Pin note'}
+              >📌</button>
+            )}
+            <button
+              className="reminder-btn"
+              onClick={handleCreateReminder}
+              disabled={loading}
+              title="Create a reminder from this note"
+            >
+              {loading ? '⏳' : '🔔'}
+            </button>
+            <button className="edit-btn" onClick={onEdit} title="Edit note">✏️</button>
+            <button className="split-btn" onClick={onSplit} title="Split note into two">✂️</button>
+            <button className="delete-btn" onClick={() => onDelete(note.id)} aria-label="Delete note">×</button>
+          </div>
         </div>
+        <p className="note-summary">{note.summary}</p>
+        <p className="note-text">{note.raw_text}</p>
+        <div className="note-tags">
+          {note.tags.map((tag) => (
+            <span
+              key={tag}
+              className={`tag${tag === activeTag ? ' tag-active' : ''}`}
+              onClick={() => onTagClick?.(tag)}
+              style={{ cursor: onTagClick ? 'pointer' : 'default' }}
+            >{tag}{tagCounts[tag] > 1 && <sup className="tag-count">{tagCounts[tag]}</sup>}</span>
+          ))}
+        </div>
+
+        {note.audio_url && (
+          <audio className="note-audio" src={note.audio_url} controls preload="none" />
+        )}
+
+        {result && <p className="card-status success">{result}</p>}
+        {error && <p className="card-status error">{error}</p>}
       </div>
-      <p className="note-summary">{note.summary}</p>
-      <p className="note-text">{note.raw_text}</p>
-      <div className="note-tags">
-        {note.tags.map((tag) => (
-          <span
-            key={tag}
-            className={`tag${tag === activeTag ? ' tag-active' : ''}`}
-            onClick={() => onTagClick?.(tag)}
-            style={{ cursor: onTagClick ? 'pointer' : 'default' }}
-          >{tag}</span>
-        ))}
-      </div>
-      
-      {result && <p className="card-status success">{result}</p>}
-      {error && <p className="card-status error">{error}</p>}
     </div>
   )
 }
