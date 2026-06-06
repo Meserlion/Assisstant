@@ -5,7 +5,21 @@ on:
     branches: [main]
 
 jobs:
+  build-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install and build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+        
   deploy:
+    needs: build-check
     runs-on: ubuntu-latest
     steps:
       - name: Deploy via SSH
@@ -23,4 +37,3 @@ jobs:
             npm run build
             systemctl restart assistant
             echo "Deploy complete"
-
