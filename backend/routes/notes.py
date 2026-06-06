@@ -129,18 +129,56 @@ async def capture_note(
 
     note = _save_note_from_text(text, client_timezone, client_local_time)
 
-    # Persist audio for playback
-    audio_dir = os.path.join(os.path.dirname(settings.sqlite_db_path), "audio")
+    # Persist audio for playback — use absolute path so FileResponse works regardless of CWD
+    audio_dir = os.path.abspath(os.path.join(os.path.dirname(settings.sqlite_db_path), "audio"))
     os.makedirs(audio_dir, exist_ok=True)
     audio_path = os.path.join(audio_dir, f"{note.id}{suffix}")
     with open(audio_path, "wb") as f:
         f.write(audio_bytes)
+
+    # MediaRecorder WebM files lack duration metadata, causing browsers to show 0:00.
+    # Remux with ffmpeg (-c copy, no re-encode) to write a proper duration into the header.
+    import subprocess
+    remux_path = audio_path + ".remux" + suffix
+    try:
+        proc = subprocess.run(
+            ["ffmpeg", "-y", "-i", audio_path, "-c", "copy", remux_path],
+            capture_output=True, timeout=30
+        )
+        if proc.returncode == 0 and os.path.exists(remux_path) and os.path.getsize(remux_path) > 0:
+            os.replace(remux_path, audio_path)
+    except Exception:
+        pass
+    finally:
+        if os.path.exists(remux_path):
+            try:
+                os.unlink(remux_path)
+            except Exception:
+                pass
+
     db = get_db()
     db.execute("UPDATE notes SET audio_path = ? WHERE id = ?", (audio_path, note.id))
     db.commit()
     db.close()
 
     return NoteResponse(**{**note.model_dump(), "audio_url": f"/api/notes/{note.id}/audio"})
+
+
+@router.post("/image", response_model=NoteResponse, dependencies=[Depends(verify_key)])
+async def capture_image_note(
+    image: UploadFile = File(...),
+    client_timezone: str = Form(None),
+    client_local_time: str = Form(None)
+):
+    """Accept an image upload, describe it with Claude Vision, and save as a text note."""
+    image_bytes = await image.read()
+    mime_type = image.content_type or "image/jpeg"
+    # Claude Vision supports jpeg, png, gif, webp
+    supported = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+    if mime_type not in supported:
+        raise HTTPException(status_code=400, detail=f"Unsupported image type: {mime_type}. Use JPEG, PNG, GIF or WebP.")
+    text = claude_service.describe_image(image_bytes, mime_type)
+    return _save_note_from_text(text, client_timezone, client_local_time)
 
 
 class TextNoteRequest(BaseModel):
@@ -221,9 +259,14 @@ def archive_note(note_id: str, body: ArchiveRequest):
     return _row_to_note(row)
 
 
-@router.get("/{note_id}/audio", dependencies=[Depends(verify_key)])
-def get_note_audio(note_id: str):
+@router.get("/{note_id}/audio")
+def get_note_audio(note_id: str, key: str = ""):
+    """Audio endpoint accepts the API key as a query param so the browser's
+    native <audio> element (which cannot send custom headers) can authenticate."""
     from fastapi.responses import FileResponse
+    from fastapi.security import APIKeyHeader as _H
+    if key != settings.api_key:
+        raise HTTPException(status_code=401, detail="Invalid API key")
     db = get_db()
     row = db.execute("SELECT audio_path FROM notes WHERE id = ?", (note_id,)).fetchone()
     db.close()
@@ -231,9 +274,27 @@ def get_note_audio(note_id: str):
         raise HTTPException(status_code=404, detail="No audio for this note")
     if not os.path.exists(row["audio_path"]):
         raise HTTPException(status_code=404, detail="Audio file missing")
-    import mimetypes
-    mime, _ = mimetypes.guess_type(row["audio_path"])
-    return FileResponse(row["audio_path"], media_type=mime or "audio/webm")
+    # Explicit extension→MIME map so minimal Linux installs (where mimetypes may not
+    # know .webm or .mp4) always serve the correct audio content type.
+    _EXT_MIME = {
+        ".webm": "audio/webm",
+        ".mp4":  "audio/mp4",
+        ".m4a":  "audio/mp4",
+        ".ogg":  "audio/ogg",
+        ".oga":  "audio/ogg",
+        ".wav":  "audio/wav",
+        ".mp3":  "audio/mpeg",
+    }
+    _, ext = os.path.splitext(row["audio_path"])
+    mime = _EXT_MIME.get(ext.lower())
+    if not mime:
+        import mimetypes
+        mime, _ = mimetypes.guess_type(row["audio_path"])
+        # mimetypes returns video/* for .mp4/.webm; browsers won't play those in <audio>.
+        if mime and mime.startswith("video/"):
+            mime = "audio/" + mime.split("/")[1]
+        mime = mime or "audio/webm"
+    return FileResponse(row["audio_path"], media_type=mime, headers={"Accept-Ranges": "bytes"})
 
 
 @router.put("/{note_id}", response_model=NoteResponse, dependencies=[Depends(verify_key)])
@@ -469,10 +530,13 @@ class NoteGroupsResponse(BaseModel):
 
 
 @router.get("/groups", response_model=NoteGroupsResponse, dependencies=[Depends(verify_key)])
-def list_note_groups():
+def list_note_groups(include_archived: bool = False):
     """Read-only: clusters notes and identifies trash, but does NOT delete anything."""
     db = get_db()
-    rows = db.execute("SELECT * FROM notes WHERE id NOT LIKE 'calendar-%'").fetchall()
+    if include_archived:
+        rows = db.execute("SELECT * FROM notes WHERE tags NOT LIKE '%\"calendar\"%'").fetchall()
+    else:
+        rows = db.execute("SELECT * FROM notes WHERE tags NOT LIKE '%\"calendar\"%' AND archived = 0").fetchall()
     db.close()
 
     notes_list = [
@@ -528,22 +592,23 @@ def merge_note_group(req: MergeGroupRequest):
         }
         for r in rows
     ]
-    
+
     # Synthesize unified text
     unified_text = claude_service.synthesize_merged_note(notes_list)
-    
+
     # Generate tags/summary for unified text
     analysis = claude_service.tag_note(unified_text)
     tags = analysis["tags"]
     summary = analysis["summary"] or req.summary
 
-    # Save the consolidated note
+    # Save the consolidated note — always as a new (non-archived) note so it
+    # surfaces in the main feed regardless of the archived status of source notes.
     note_id = str(uuid.uuid4())
     created_at = datetime.now(timezone.utc).isoformat()
 
     db.execute(
-        "INSERT INTO notes (id, created_at, raw_text, tags, summary) VALUES (?, ?, ?, ?, ?)",
-        (note_id, created_at, unified_text, json.dumps(tags), summary),
+        "INSERT INTO notes (id, created_at, raw_text, tags, summary, archived) VALUES (?, ?, ?, ?, ?, ?)",
+        (note_id, created_at, unified_text, json.dumps(tags), summary, 0),
     )
 
     # Delete the old notes
@@ -557,4 +622,3 @@ def merge_note_group(req: MergeGroupRequest):
         chroma_service.delete_note(old_id)
 
     return NoteResponse(id=note_id, created_at=created_at, raw_text=unified_text, tags=tags, summary=summary)
-
