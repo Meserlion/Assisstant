@@ -1,3 +1,4 @@
+import asyncio
 import json
 import uuid
 import tempfile
@@ -138,7 +139,7 @@ async def capture_note(
     finally:
         os.unlink(tmp_path)
 
-    note = _save_note_from_text(text, client_timezone, client_local_time)
+    note = await asyncio.to_thread(_save_note_from_text, text, client_timezone, client_local_time)
 
     # Persist audio for playback — use absolute path so FileResponse works regardless of CWD
     audio_dir = os.path.abspath(os.path.join(os.path.dirname(settings.sqlite_db_path), "audio"))
@@ -195,7 +196,7 @@ async def capture_image_note(
         text = claude_service.describe_image(image_bytes, mime_type)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Image analysis failed: {exc}")
-    return _save_note_from_text(text, client_timezone, client_local_time)
+    return await asyncio.to_thread(_save_note_from_text, text, client_timezone, client_local_time)
 
 
 class TextNoteRequest(BaseModel):

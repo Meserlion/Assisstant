@@ -57,5 +57,4 @@ def init_db():
             token_json TEXT NOT NULL
         )
     """)
-    conn.commit()
-    conn.close()
+    # Indexes for the common feed q
