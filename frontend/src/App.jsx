@@ -154,10 +154,27 @@ export default function App() {
     setCapturing(true)
     setError(null)
     try {
-      const note = await captureImageNote(file)
+      // Convert to JPEG via canvas — handles HEIC and oversized images from cameras
+      const jpeg = await new Promise((resolve, reject) => {
+        const img = new Image()
+        const url = URL.createObjectURL(file)
+        img.onload = () => {
+          URL.revokeObjectURL(url)
+          const MAX = 1920
+          const scale = Math.min(1, MAX / Math.max(img.width, img.height))
+          const canvas = document.createElement('canvas')
+          canvas.width = Math.round(img.width * scale)
+          canvas.height = Math.round(img.height * scale)
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+          canvas.toBlob((blob) => blob ? resolve(new File([blob], 'photo.jpg', { type: 'image/jpeg' })) : reject(new Error('Image conversion failed')), 'image/jpeg', 0.85)
+        }
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not load image')) }
+        img.src = url
+      })
+      const note = await captureImageNote(jpeg)
       setNotes((prev) => [note, ...prev])
     } catch (err) {
-      setError(err.message)
+      setError(err.message || 'Image upload failed')
     } finally {
       setCapturing(false)
     }
@@ -387,36 +404,4 @@ export default function App() {
                 onChange={(e) => setReportBody(e.target.value)}
                 rows={5}
               />
-              <div className="form-buttons">
-                <button type="button" className="secondary-btn" onClick={() => setReportOpen(false)}>Cancel</button>
-                <button type="submit" className="accent-btn" disabled={!reportTitle.trim()}>Open on GitHub →</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {splittingNote && (
-        <SplitNoteModal
-          note={splittingNote}
-          onClose={() => setSplittingNote(null)}
-          onSplit={(newNotes, deletedId) => {
-            setNotes((prev) => [...newNotes, ...prev.filter((n) => n.id !== deletedId)])
-            setSplittingNote(null)
-          }}
-        />
-      )}
-
-      {editingNote && (
-        <EditNoteModal
-          note={editingNote}
-          onClose={() => setEditingNote(null)}
-          onSave={(updated) => {
-            setNotes((prev) => prev.map((n) => n.id === updated.id ? updated : n))
-            setEditingNote(null)
-          }}
-        />
-      )}
-    </div>
-  )
-}
+              <div className="form-but
