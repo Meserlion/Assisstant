@@ -219,6 +219,38 @@ def cluster_notes(notes: list[dict]) -> dict:
         return {"groups": [], "trash_note_ids": []}
 
 
+def describe_image(image_bytes: bytes, mime_type: str) -> str:
+    """Send an image to Claude Vision and return a descriptive text to save as a note."""
+    import base64
+    b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
+    response = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1024,
+        messages=[{
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": mime_type,
+                        "data": b64,
+                    },
+                },
+                {
+                    "type": "text",
+                    "text": (
+                        "Describe what you see in this image. "
+                        "If there is any text in the image, transcribe it exactly. "
+                        "Be thorough and capture all useful information — this will be saved as a personal note."
+                    ),
+                }
+            ],
+        }]
+    )
+    return response.content[0].text.strip()
+
+
 def synthesize_merged_note(notes: list[dict]) -> str:
     """Consolidate the raw texts of multiple notes into a single unified coherent note."""
     notes_texts = "\n---\n".join(
