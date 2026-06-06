@@ -36,7 +36,7 @@ export function ConsolidateTab({ notes, onMergeSuccess }) {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchGroups()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function handleCleanupTrash() {
@@ -144,4 +144,15 @@ export function ConsolidateTab({ notes, onMergeSuccess }) {
                 </div>
               </details>
             </div>
-         
+          )
+        })}
+
+        {groups.length === 0 && (
+          <p className="empty">
+            All caught up! No duplicate or highly similar notes found to consolidate right now.
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
