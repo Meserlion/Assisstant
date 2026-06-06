@@ -256,4 +256,4 @@ def describe_image(image_bytes: bytes, mime_type: str) -> str:
             ],
         }]
     )
-    return response.content[0]
+    return response.content[0].text
