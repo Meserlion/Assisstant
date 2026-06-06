@@ -240,9 +240,13 @@ def describe_image(image_bytes: bytes, mime_type: str) -> str:
                 {
                     "type": "text",
                     "text": (
-                        "Describe what you see in this image. "
-                        "If there is any text in the image, transcribe it exactly. "
-                        "Be thorough and capture all useful information — this will be saved as a personal note."
+                        "Extract and return the useful content from this image as a personal note. "
+                        "If the image contains text (handwritten or typed), transcribe it faithfully — "
+                        "for handwritten text, interpret it as best you can. "
+                        "If it is a photo of a real-world scene with no text, briefly describe what is shown. "
+                        "Return only the note content itself — no meta-commentary about the image, "
+                        "no phrases like 'The image shows' or 'This appears to be'. "
+                        "Just the raw content as if the user wrote it themselves."
                     ),
                 }
             ],
@@ -259,18 +263,4 @@ def synthesize_merged_note(notes: list[dict]) -> str:
     prompt = (
         "You are an editor. Consolidate the following notes into a single, unified, coherent note. "
         "Combine duplicate information, resolve temporal order based on dates, and write a single "
-        "flowable, well-structured text. Keep all important facts, detail, and tone.\n\n"
-        "Source Notes:\n" + notes_texts + "\n\n"
-        "Unified Note:"
-    )
-    
-    response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=1536,
-        messages=[{
-            "role": "user",
-            "content": prompt
-        }]
-    )
-    return response.content[0].text.strip()
-
+        "flowable, well-st
