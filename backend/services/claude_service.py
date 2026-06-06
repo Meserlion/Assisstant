@@ -1,6 +1,17 @@
 import json
+import re
 import anthropic
 from config import settings
+
+
+def _strip_json_fences(raw: str) -> str:
+    """Remove markdown code fences from LLM responses before JSON parsing."""
+    raw = raw.strip()
+    raw = re.sub(r"^```[a-z]*
+?", "", raw)
+    raw = re.sub(r"
+?```$", "", raw)
+    return raw.strip()
 
 client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
@@ -33,11 +44,7 @@ def tag_note(text: str, client_timezone: str = None, client_local_time: str = No
                 "content": prompt
             }]
         )
-        raw = response.content[0].text.strip()
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
+        raw = _strip_json_fences(response.content[0].text)
         data = json.loads(raw)
         return {
             "tags": data.get("tags", []),
@@ -203,11 +210,7 @@ def cluster_notes(notes: list[dict]) -> dict:
         }]
     )
 
-    raw = response.content[0].text.strip()
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
+    raw = _strip_json_fences(response.content[0].text)
     try:
         data = json.loads(raw)
         return {

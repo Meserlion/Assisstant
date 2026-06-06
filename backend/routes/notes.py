@@ -328,7 +328,7 @@ def update_note(note_id: str, req: NoteUpdateRequest):
     chroma_service.add_note(note_id, req.text, {"created_at": row["created_at"], "tags": json.dumps(tags), "summary": summary})
 
     return NoteResponse(id=note_id, created_at=row["created_at"], raw_text=req.text, tags=tags, summary=summary,
-                        pinned=bool(row["pinned"]), audio_url=f"/api/notes/{note_id}/audio" if row["audio_path"] else None)
+                        pinned=bool(row["pinned"]), archived=bool(row["archived"]), audio_url=f"/api/notes/{note_id}/audio" if row["audio_path"] else None)
 
 
 class RewriteRequest(BaseModel):

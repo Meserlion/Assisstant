@@ -11,7 +11,7 @@ from google_auth_oauthlib.flow import Flow
 from config import settings
 from database import get_db
 from services import google_calendar, push_service
-from services.claude_service import client as anthropic_client
+from services.claude_service import client as anthropic_client, _strip_json_fences
 
 router = APIRouter(prefix="/calendar", tags=["calendar"])
 api_key_header = APIKeyHeader(name="X-API-Key")
@@ -280,11 +280,7 @@ def _parse_reminder(text: str, selected_date: str = None, client_timezone: str =
             )
         }]
     )
-    raw = response.content[0].text.strip()
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
+    raw = _strip_json_fences(response.content[0].text)
     try:
         import json
         return json.loads(raw)
