@@ -75,7 +75,18 @@ def _save_note_from_text(text: str, client_timezone: str = None, client_local_ti
     db.commit()
     db.close()
 
-    chroma_service.add_note(note_id, text, {"created_at": created_at, "tags": json.dumps(tags), "summary": summary})
+    try:
+        chroma_service.add_note(note_id, text, {"created_at": created_at, "tags": json.dumps(tags), "summary": summary})
+    except Exception as e:
+        print(f"CHROMA_SYNC_FAILURE note_id={note_id} error={e} — rolling back SQLite insert")
+        try:
+            db = get_db()
+            db.execute("DELETE FROM notes WHERE id = ?", (note_id,))
+            db.commit()
+            db.close()
+        except Exception as rb_err:
+            print(f"CHROMA_ROLLBACK_FAILURE note_id={note_id} rollback_error={rb_err}")
+        raise HTTPException(status_code=500, detail="Failed to index note for search. Note was not saved.")
 
     audio_path = None  # populated by capture endpoint when audio is saved
 

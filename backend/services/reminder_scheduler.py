@@ -9,10 +9,11 @@ scheduler = BackgroundScheduler()
 def check_reminders():
     import uuid
     now = datetime.now(timezone.utc)
-    window = (now + timedelta(minutes=1)).isoformat()
+    window = (now + timedelta(seconds=5)).isoformat()
     db = get_db()
     due = db.execute(
-        "SELECT * FROM reminders WHERE sent = 0 AND remind_at <= ?", (window,)
+        "SELECT * FROM reminders WHERE sent = 0 AND remind_at <= ? AND remind_at >= ?",
+        (window, (now - timedelta(seconds=30)).isoformat())
     ).fetchall()
     for r in due:
         delivered = send_push(title="Reminder", body=r["title"], reminder_id=r["id"])
