@@ -18,7 +18,7 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
     setResult(null)
     try {
       const res = await createReminderFromText(note.raw_text)
-      setResult(`Scheduled: ${new Date(res.remind_at).toLocaleString()}`)
+      setResult('Scheduled: ' + new Date(res.remind_at).toLocaleString())
     } catch (e) {
       setError(e.message || "Failed to schedule reminder")
     } finally {
@@ -49,13 +49,30 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
     touchStartX.current = null
   }
 
+  function handleAudioMetadata(e) {
+    const audio = e.target
+    // MediaRecorder WebM files lack duration metadata -- browsers show 0:00.
+    // Seeking past the end forces the browser to scan and compute real duration.
+    // We wait until duration is finite before resetting to avoid premature reset.
+    if (!isFinite(audio.duration) || audio.duration === 0) {
+      audio.currentTime = 1e101
+      const reset = () => {
+        if (isFinite(audio.duration) && audio.duration > 0) {
+          audio.currentTime = 0
+          audio.removeEventListener('timeupdate', reset)
+        }
+      }
+      audio.addEventListener('timeupdate', reset)
+    }
+  }
+
   return (
     <div className="note-card-wrapper">
       <div className="note-card-archive-zone" aria-hidden="true">{isArchived ? 'Unarchive' : 'Archive'}</div>
       <div className="note-card-delete-zone" aria-hidden="true">Delete</div>
       <div
-        className={`note-card${selected ? ' note-card-selected' : ''}`}
-        style={{ transform: `translateX(${swipeOffset}px)`, transition: swipeOffset === 0 ? 'transform 0.2s ease' : 'none' }}
+        className={'note-card' + (selected ? ' note-card-selected' : '')}
+        style={{ transform: 'translateX(' + swipeOffset + 'px)', transition: swipeOffset === 0 ? 'transform 0.2s ease' : 'none' }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -74,7 +91,7 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
           <div className="note-actions">
             {onPin && (
               <button
-                className={`pin-btn${note.pinned ? ' pin-active' : ''}`}
+                className={'pin-btn' + (note.pinned ? ' pin-active' : '')}
                 onClick={() => onPin(note.id, !note.pinned)}
                 title={note.pinned ? 'Unpin note' : 'Pin note'}
               >📌</button>
@@ -98,8 +115,8 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
           {note.tags.map((tag) => (
             <span
               key={tag}
-              className={`tag${tag === activeTag ? ' tag-active' : ''}`}
-              onClick={() => onTagClick?.(tag)}
+              className={'tag' + (tag === activeTag ? ' tag-active' : '')}
+              onClick={() => onTagClick && onTagClick(tag)}
               style={{ cursor: onTagClick ? 'pointer' : 'default' }}
             >{tag}{tagCounts[tag] > 1 && <sup className="tag-count">{tagCounts[tag]}</sup>}</span>
           ))}
@@ -108,9 +125,10 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
         {note.audio_url && (
           <audio
             className="note-audio"
-            src={`${note.audio_url}?key=${encodeURIComponent(localStorage.getItem('api_key') || '')}`}
+            src={note.audio_url + '?key=' + encodeURIComponent(localStorage.getItem('api_key') || '')}
             controls
             preload="metadata"
+            onLoadedMetadata={handleAudioMetadata}
           />
         )}
 
@@ -118,4 +136,5 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
         {error && <p className="card-status error">{error}</p>}
       </div>
     </div>
-  
+  )
+}
