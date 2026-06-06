@@ -404,4 +404,36 @@ export default function App() {
                 onChange={(e) => setReportBody(e.target.value)}
                 rows={5}
               />
-              <div className="form-but
+              <div className="form-buttons">
+                <button type="button" className="secondary-btn" onClick={() => setReportOpen(false)}>Cancel</button>
+                <button type="submit" className="accent-btn" disabled={!reportTitle.trim()}>Open on GitHub →</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {splittingNote && (
+        <SplitNoteModal
+          note={splittingNote}
+          onClose={() => setSplittingNote(null)}
+          onSplit={(newNotes, deletedId) => {
+            setNotes((prev) => [...newNotes, ...prev.filter((n) => n.id !== deletedId)])
+            setSplittingNote(null)
+          }}
+        />
+      )}
+
+      {editingNote && (
+        <EditNoteModal
+          note={editingNote}
+          onClose={() => setEditingNote(null)}
+          onSave={(updated) => {
+            setNotes((prev) => prev.map((n) => n.id === updated.id ? updated : n))
+            setEditingNote(null)
+          }}
+        />
+      )}
+    </div>
+  )
+}
