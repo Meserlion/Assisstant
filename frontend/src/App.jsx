@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { hasApiKey, captureNote, createTextNote, listNotes, deleteNote, transcribeAudio, pinNote, archiveNote } from './api/client'
+import { hasApiKey, captureNote, captureImageNote, createTextNote, listNotes, deleteNote, transcribeAudio, pinNote, archiveNote } from './api/client'
 import { useRecorder } from './hooks/useRecorder'
 import { ApiKeySetup } from './components/ApiKeySetup'
 import { NoteCard } from './components/NoteCard'
@@ -25,6 +25,7 @@ export default function App() {
   const [error, setError] = useState(null)
   const { recording, start, stop } = useRecorder()
   const { recording: textRecording, start: textStart, stop: textStop } = useRecorder()
+  const imageInputRef = useRef(null)
   const [undoToast, setUndoToast] = useState(null)
   const undoRef = useRef(null)
   const [selectedIds, setSelectedIds] = useState(new Set())
@@ -144,6 +145,22 @@ export default function App() {
     setSelectedIds(new Set())
     setNotes(prev => prev.filter(n => !ids.includes(n.id)))
     await Promise.all(ids.map(id => deleteNote(id).catch(() => {})))
+  }
+
+  async function handleImageCapture(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setCapturing(true)
+    setError(null)
+    try {
+      const note = await captureImageNote(file)
+      setNotes((prev) => [note, ...prev])
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setCapturing(false)
+    }
   }
 
   async function handleTextSubmit(e) {
@@ -269,6 +286,22 @@ export default function App() {
               {capturing && <p className="status">Saving note…</p>}
               {error && <p className="error">{error}</p>}
               <div className="capture-row">
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  style={{ display: 'none' }}
+                  onChange={handleImageCapture}
+                />
+                <button
+                  className="mode-toggle-btn"
+                  onClick={() => imageInputRef.current?.click()}
+                  title="Take or upload a photo note"
+                  disabled={capturing}
+                >
+                  📷
+                </button>
                 <button
                   className={`mode-toggle-btn ${textMode ? 'active' : ''}`}
                   onClick={() => setTextMode((m) => !m)}
