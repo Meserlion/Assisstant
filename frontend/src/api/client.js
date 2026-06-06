@@ -46,31 +46,40 @@ export function getClientTimezone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone
 }
 
-export async function captureNote(audioBlob) {
+export async function captureImageNote(file) {
   const form = new FormData()
-  form.append('audio', audioBlob, 'recording.webm')
+  form.append('image', file)
+  form.append('client_timezone', getClientTimezone())
+  form.append('client_local_time', getLocalIsoTime())
+  return request('/notes/image', { method: 'POST', body: form })
+}
+
+export async function captureNote(audioBlob) {
+  const type = audioBlob.type || ''
+  const ext = type.includes('mp4') ? 'mp4' : type.includes('ogg') ? 'ogg' : 'webm'
+  const form = new FormData()
+  form.append('audio', audioBlob, 'recording.' + ext)
   form.append('client_timezone', getClientTimezone())
   form.append('client_local_time', getLocalIsoTime())
   return request('/notes/capture', { method: 'POST', body: form })
 }
 
-export async function listNotes(limit = 50, offset = 0, archived = false) {
-  return request(`/notes/?limit=${limit}&offset=${offset}&archived=${archived}`)
+export async function listNotes(limit, offset, archived) {
+  limit = limit || 50
+  offset = offset || 0
+  archived = archived || false
+  return request('/notes/?limit=' + limit + '&offset=' + offset + '&archived=' + archived)
 }
 
 export async function deleteNote(id) {
-  return request(`/notes/${id}`, { method: 'DELETE' })
+  return request('/notes/' + id, { method: 'DELETE' })
 }
 
 export async function updateNote(id, text) {
-  return request(`/notes/${id}`, {
+  return request('/notes/' + id, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      text,
-      client_timezone: getClientTimezone(),
-      client_local_time: getLocalIsoTime(),
-    }),
+    body: JSON.stringify({ text, client_timezone: getClientTimezone(), client_local_time: getLocalIsoTime() }),
   })
 }
 
@@ -78,11 +87,7 @@ export async function createTextNote(text) {
   return request('/notes/text', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      text,
-      client_timezone: getClientTimezone(),
-      client_local_time: getLocalIsoTime(),
-    }),
+    body: JSON.stringify({ text, client_timezone: getClientTimezone(), client_local_time: getLocalIsoTime() }),
   })
 }
 
@@ -100,19 +105,19 @@ export async function transcribeAudio(audioBlob) {
   return request('/notes/transcribe', { method: 'POST', body: form })
 }
 
-export async function queryNotes(text, history = []) {
+export async function queryNotes(text, history) {
   return request('/notes/query', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, history }),
+    body: JSON.stringify({ text, history: history || [] }),
   })
 }
 
-export async function queryNotesStream(text, history = [], onMeta, onChunk) {
-  const res = await fetch(`${BASE}/notes/query/stream`, {
+export async function queryNotesStream(text, history, onMeta, onChunk) {
+  const res = await fetch(BASE + '/notes/query/stream', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-API-Key': getKey() },
-    body: JSON.stringify({ text, history }),
+    body: JSON.stringify({ text, history: history || [] }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
@@ -122,12 +127,13 @@ export async function queryNotesStream(text, history = [], onMeta, onChunk) {
   const decoder = new TextDecoder()
   let buffer = ''
   while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
+    const result = await reader.read()
+    if (result.done) break
+    buffer += decoder.decode(result.value, { stream: true })
     const lines = buffer.split('\n')
     buffer = lines.pop()
-    for (const line of lines) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
       if (!line.startsWith('data: ')) continue
       try {
         const data = JSON.parse(line.slice(6))
@@ -138,10 +144,10 @@ export async function queryNotesStream(text, history = [], onMeta, onChunk) {
   }
 }
 
-export async function queryNotesVoice(audioBlob, history = []) {
+export async function queryNotesVoice(audioBlob, history) {
   const form = new FormData()
   form.append('audio', audioBlob, 'query.webm')
-  form.append('history', JSON.stringify(history))
+  form.append('history', JSON.stringify(history || []))
   return request('/notes/query/voice', { method: 'POST', body: form })
 }
 
@@ -153,8 +159,8 @@ export function hasApiKey() {
   return Boolean(getKey())
 }
 
-export async function getNoteGroups() {
-  return request('/notes/groups')
+export async function getNoteGroups(includeArchived) {
+  return request('/notes/groups?include_archived=' + (includeArchived ? 'true' : 'false'))
 }
 
 export async function cleanupTrashNotes(noteIds) {
@@ -166,18 +172,18 @@ export async function cleanupTrashNotes(noteIds) {
 }
 
 export async function pinNote(id, pinned) {
-  return request(`/notes/${id}/pin`, {
+  return request('/notes/' + id + '/pin', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ pinned }),
   })
 }
 
-export async function archiveNote(id, archived = true) {
-  return request(`/notes/${id}/archive`, {
+export async function archiveNote(id, archived) {
+  return request('/notes/' + id + '/archive', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ archived }),
+    body: JSON.stringify({ archived: archived !== false }),
   })
 }
 
@@ -185,6 +191,6 @@ export async function mergeNoteGroup(noteIds, topic, summary) {
   return request('/notes/merge-group', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ note_ids: noteIds, topic, summary }),
+    body: JSON.stringify({ note_ids: noteIds, topic: topic, summary: summary }),
   })
 }
