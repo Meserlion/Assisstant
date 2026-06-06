@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 import uuid
 import tempfile
@@ -492,6 +493,15 @@ async def query_notes_voice(audio: UploadFile = File(...), history: str = Form("
     return query_notes(QueryRequest(text=text, history=history_list))
 
 
+
+_groups_cache: dict = {"fingerprint": None, "result": None}
+
+
+def _notes_fingerprint(notes_list: list[dict]) -> str:
+    key = sorted((n["id"], n["raw_text"]) for n in notes_list)
+    return hashlib.md5(json.dumps(key).encode()).hexdigest()
+
+
 class NoteGroupResponse(BaseModel):
     topic: str
     summary: str
@@ -568,13 +578,20 @@ def list_note_groups(include_archived: bool = False):
         for r in rows
     ]
 
+    fp = _notes_fingerprint(notes_list)
+    if fp == _groups_cache["fingerprint"] and _groups_cache["result"] is not None:
+        return _groups_cache["result"]
+
     programmatic_trash_ids, llm_trash_ids, groups = _classify_notes(notes_list)
     all_trash_ids = programmatic_trash_ids + llm_trash_ids
 
-    return NoteGroupsResponse(
+    result = NoteGroupsResponse(
         groups=[NoteGroupResponse(topic=g["topic"], summary=g["summary"], note_ids=g["note_ids"]) for g in groups],
         trash_ids=all_trash_ids,
     )
+    _groups_cache["fingerprint"] = fp
+    _groups_cache["result"] = result
+    return result
 
 
 @router.post("/groups/cleanup", dependencies=[Depends(verify_key)])
