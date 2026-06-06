@@ -623,4 +623,8 @@ def merge_note_group(req: MergeGroupRequest):
     db.close()
 
     # Update Vector Store
-    chroma_service.add_note(note_id, unif
+    chroma_service.add_note(note_id, unified_text, {"created_at": created_at, "tags": json.dumps(tags), "summary": summary})
+    for old_id in req.note_ids:
+        chroma_service.delete_note(old_id)
+
+    return NoteResponse(id=note_id, created_at=created_at, raw_text=unified_text, tags=tags, summary=summary)
