@@ -7,10 +7,8 @@ from config import settings
 def _strip_json_fences(raw: str) -> str:
     """Remove markdown code fences from LLM responses before JSON parsing."""
     raw = raw.strip()
-    raw = re.sub(r"^```[a-z]*
-?", "", raw)
-    raw = re.sub(r"
-?```$", "", raw)
+    raw = re.sub("^```[a-z]*\\n?", "", raw)
+    raw = re.sub("\\n?```$", "", raw)
     return raw.strip()
 
 client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
