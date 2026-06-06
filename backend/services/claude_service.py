@@ -169,6 +169,29 @@ def rewrite_note(text: str, instruction: str) -> str:
     return response.content[0].text.strip()
 
 
+def synthesize_merged_note(notes: list[dict]) -> str:
+    """Consolidate the raw texts of multiple notes into a single unified coherent note."""
+    notes_texts = "\n---\n".join(
+        f"Date: {n['created_at']}\nNote: {n['raw_text']}" for n in notes
+    )
+    prompt = (
+        "You are an editor. Consolidate the following notes into a single, unified, coherent note. "
+        "Combine duplicate information, resolve temporal order based on dates, and write a single "
+        "flowable, well-structured text. Keep all important facts, detail, and tone.\n\n"
+        "Source Notes:\n" + notes_texts + "\n\n"
+        "Unified Note:"
+    )
+    response = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1536,
+        messages=[{
+            "role": "user",
+            "content": prompt
+        }]
+    )
+    return response.content[0].text.strip()
+
+
 def cluster_notes(notes: list[dict]) -> dict:
     """Group notes by similarity and return a list of groups with consolidated summaries, and identify trash notes."""
     if not notes:

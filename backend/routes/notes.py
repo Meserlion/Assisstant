@@ -421,7 +421,7 @@ def query_notes_stream(req: QueryRequest):
 
     db = get_db()
     calendar_rows = db.execute(
-        "SELECT created_at, raw_text FROM notes WHERE id LIKE 'calendar-%' AND created_at >= ? AND created_at <= ? ORDER BY created_at ASC",
+        "SELECT created_at, raw_text FROM notes WHERE tags LIKE '%\"calendar\"%' AND created_at >= ? AND created_at <= ? ORDER BY created_at ASC",
         (now_utc.isoformat(), limit_utc)
     ).fetchall()
     schedule_context = ""
