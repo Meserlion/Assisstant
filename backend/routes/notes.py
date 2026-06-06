@@ -173,11 +173,17 @@ async def capture_image_note(
     """Accept an image upload, describe it with Claude Vision, and save as a text note."""
     image_bytes = await image.read()
     mime_type = image.content_type or "image/jpeg"
+    # Normalise MIME — some browsers send image/jpg instead of image/jpeg
+    if mime_type == "image/jpg":
+        mime_type = "image/jpeg"
     # Claude Vision supports jpeg, png, gif, webp
     supported = {"image/jpeg", "image/png", "image/gif", "image/webp"}
     if mime_type not in supported:
         raise HTTPException(status_code=400, detail=f"Unsupported image type: {mime_type}. Use JPEG, PNG, GIF or WebP.")
-    text = claude_service.describe_image(image_bytes, mime_type)
+    try:
+        text = claude_service.describe_image(image_bytes, mime_type)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Image analysis failed: {exc}")
     return _save_note_from_text(text, client_timezone, client_local_time)
 
 
@@ -617,8 +623,4 @@ def merge_note_group(req: MergeGroupRequest):
     db.close()
 
     # Update Vector Store
-    chroma_service.add_note(note_id, unified_text, {"created_at": created_at, "tags": json.dumps(tags), "summary": summary})
-    for old_id in req.note_ids:
-        chroma_service.delete_note(old_id)
-
-    return NoteResponse(id=note_id, created_at=created_at, raw_text=unified_text, tags=tags, summary=summary)
+    chroma_service.add_note(note_id, unif
