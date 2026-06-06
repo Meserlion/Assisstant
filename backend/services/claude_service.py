@@ -240,27 +240,20 @@ def describe_image(image_bytes: bytes, mime_type: str) -> str:
                 {
                     "type": "text",
                     "text": (
-                        "Extract and return the useful content from this image as a personal note. "
-                        "If the image contains text (handwritten or typed), transcribe it faithfully — "
-                        "for handwritten text, interpret it as best you can. "
-                        "If it is a photo of a real-world scene with no text, briefly describe what is shown. "
-                        "Return only the note content itself — no meta-commentary about the image, "
-                        "no phrases like 'The image shows' or 'This appears to be'. "
-                        "Just the raw content as if the user wrote it themselves."
+                        "You are saving a personal note from a photo. "
+                        "Identify what type of image this is and extract only the useful information in the most compact, practical format.\n\n"
+                        "Rules by image type:\n"
+                        "- Handwritten list (shopping, to-do, etc.): transcribe as a clean bullet list. Fix obvious spelling. No intro text.\n"
+                        "- Product / price tag / receipt: item name + price. If multiple items, list them.\n"
+                        "- Shop / restaurant / location: name of place, address if visible, any relevant detail (hours, phone). One line per piece of info.\n"
+                        "- Menu: dish names and prices only. Skip descriptions unless key.\n"
+                        "- Document / sign / poster: transcribe the key text, skip decorative filler.\n"
+                        "- Real-world scene with no text: one concise sentence of what it is and where (if determinable).\n\n"
+                        "Never start with 'This image shows', 'I can see', or any meta-commentary. "
+                        "Output only the note content itself, as if the user typed it."
                     ),
                 }
             ],
         }]
     )
-    return response.content[0].text.strip()
-
-
-def synthesize_merged_note(notes: list[dict]) -> str:
-    """Consolidate the raw texts of multiple notes into a single unified coherent note."""
-    notes_texts = "\n---\n".join(
-        f"Date: {n['created_at']}\nNote: {n['raw_text']}" for n in notes
-    )
-    prompt = (
-        "You are an editor. Consolidate the following notes into a single, unified, coherent note. "
-        "Combine duplicate information, resolve temporal order based on dates, and write a single "
-        "flowable, well-st
+    return response.content[0]
