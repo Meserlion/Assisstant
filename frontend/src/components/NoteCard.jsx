@@ -203,4 +203,25 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
             <span
               key={tag}
               className={'tag' + (tag === activeTag ? ' tag-active' : '')}
-              onClick={() => onTagClick && onTa
+              onClick={() => onTagClick && onTagClick(tag)}
+              style={{ cursor: onTagClick ? 'pointer' : 'default' }}
+            >{tag}{tagCounts[tag] > 1 && <sup className="tag-count">{tagCounts[tag]}</sup>}</span>
+          ))}
+        </div>
+
+        {note.audio_url && (
+          <audio
+            className="note-audio"
+            src={note.audio_url + '?key=' + encodeURIComponent(localStorage.getItem('api_key') || '')}
+            controls
+            preload="metadata"
+            onLoadedMetadata={handleAudioMetadata}
+          />
+        )}
+
+        {result && <p className="card-status success">{result}</p>}
+        {error && <p className="card-status error">{error}</p>}
+      </div>
+    </div>
+  )
+}
