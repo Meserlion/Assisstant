@@ -43,6 +43,8 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
   // eslint-disable-next-line react-hooks/purity
   const isAged = new Date(note.created_at).getTime() < Date.now() - 7 * 24 * 60 * 60 * 1000
   const { isList, items: checklistItems } = parseChecklist(note.raw_text)
+  const checklistDone = checklistItems.filter(i => i.isBullet && i.checked).length
+  const checklistTotal = checklistItems.filter(i => i.isBullet).length
 
   async function handleCreateReminder() {
     setLoading(true)
@@ -130,6 +132,12 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
             />
           )}
           <span className="note-date">{date}</span>
+          {isList && (
+            <span
+              className={'checklist-progress' + (checklistDone === checklistTotal ? ' checklist-progress-complete' : '')}
+              title={checklistDone + ' of ' + checklistTotal + ' done'}
+            >{checklistDone}/{checklistTotal}</span>
+          )}
           <div className="note-actions">
             {onPin && (
               <button
