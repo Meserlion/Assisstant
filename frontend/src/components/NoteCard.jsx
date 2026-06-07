@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { createReminderFromText } from '../api/calendarClient'
-import { updateNote, researchNote } from '../api/client'
+import { updateNote } from '../api/client'
 
 /**
  * Parse raw_text into checklist items if it contains 2+ bullet lines.
@@ -32,7 +32,6 @@ function serializeChecklist(items) {
 
 export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTag, tagCounts = {}, selected, onSelect, onPin, onArchive, isArchived, onUpdate }) {
   const [loading, setLoading] = useState(false)
-  const [researching, setResearching] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
   const [swipeOffset, setSwipeOffset] = useState(0)
@@ -56,21 +55,6 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
       setError(e.message || "Failed to schedule reminder")
     } finally {
       setLoading(false)
-    }
-  }
-
-  async function handleResearch() {
-    setResearching(true)
-    setError(null)
-    setResult(null)
-    try {
-      const updated = await researchNote(note.id)
-      if (onUpdate) onUpdate(updated)
-      setResult('Research added')
-    } catch (e) {
-      setError(e.message || 'Research failed')
-    } finally {
-      setResearching(false)
     }
   }
 
@@ -154,14 +138,6 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
                 title={note.pinned ? 'Unpin note' : 'Pin note'}
               >&#128204;</button>
             )}
-            <button
-              className="research-btn"
-              onClick={handleResearch}
-              disabled={researching}
-              title="Research this note topic"
-            >
-              {researching ? '⏳' : '🔍'}
-            </button>
             <button
               className="reminder-btn"
               onClick={handleCreateReminder}
