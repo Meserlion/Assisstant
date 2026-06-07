@@ -24,7 +24,7 @@ def init_db():
         )
     """)
     # Migrate existing databases — ignore if columns already exist
-    for col, definition in [("pinned", "INTEGER NOT NULL DEFAULT 0"), ("audio_path", "TEXT"), ("archived", "INTEGER NOT NULL DEFAULT 0")]:
+    for col, definition in [("pinned", "INTEGER NOT NULL DEFAULT 0"), ("audio_path", "TEXT"), ("archived", "INTEGER NOT NULL DEFAULT 0"), ("color", "TEXT")]:
         try:
             conn.execute(f"ALTER TABLE notes ADD COLUMN {col} {definition}")
         except Exception:

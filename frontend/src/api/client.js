@@ -187,6 +187,14 @@ export async function archiveNote(id, archived) {
   })
 }
 
+export async function setNoteColor(id, color) {
+  return request('/notes/' + id + '/color', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ color: color || null }),
+  })
+}
+
 export async function researchNote(id) {
   return request('/notes/' + id + '/research', { method: 'POST' })
 }

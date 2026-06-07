@@ -33,6 +33,7 @@ class NoteResponse(BaseModel):
     summary: str
     pinned: bool = False
     archived: bool = False
+    color: str | None = None
     audio_url: str | None = None
 
 
@@ -55,6 +56,14 @@ class QueryResponse(BaseModel):
 
 class PinRequest(BaseModel):
     pinned: bool
+
+
+# Allowed preset colour names (matches frontend swatch picker). None clears the colour.
+ALLOWED_COLORS = {"red", "orange", "yellow", "green", "blue", "purple"}
+
+
+class ColorRequest(BaseModel):
+    color: str | None = None
 
 
 class CleanupRequest(BaseModel):
@@ -222,6 +231,7 @@ def _row_to_note(r) -> NoteResponse:
         summary=r["summary"],
         pinned=bool(r["pinned"]),
         archived=bool(r["archived"]),
+        color=(r["color"] if "color" in r.keys() else None),
         audio_url=f"/api/notes/{r['id']}/audio" if r["audio_path"] else None,
     )
 
@@ -254,6 +264,21 @@ def pin_note(note_id: str, body: PinRequest):
     pinned = int(body.pinned)
     db = get_db()
     db.execute("UPDATE notes SET pinned = ? WHERE id = ?", (pinned, note_id))
+    db.commit()
+    row = db.execute("SELECT * FROM notes WHERE id = ?", (note_id,)).fetchone()
+    db.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Note not found")
+    return _row_to_note(row)
+
+
+@router.patch("/{note_id}/color", response_model=NoteResponse, dependencies=[Depends(verify_key)])
+def color_note(note_id: str, body: ColorRequest):
+    color = body.color
+    if color is not None and color not in ALLOWED_COLORS:
+        raise HTTPException(status_code=400, detail=f"Invalid color. Allowed: {', '.join(sorted(ALLOWED_COLORS))}")
+    db = get_db()
+    db.execute("UPDATE notes SET color = ? WHERE id = ?", (color, note_id))
     db.commit()
     row = db.execute("SELECT * FROM notes WHERE id = ?", (note_id,)).fetchone()
     db.close()
@@ -334,14 +359,14 @@ def update_note(note_id: str, req: NoteUpdateRequest):
         (req.text, json.dumps(tags), summary, note_id)
     )
     db.commit()
+    updated_row = db.execute("SELECT * FROM notes WHERE id = ?", (note_id,)).fetchone()
     db.close()
 
     # Update Vector Store (Chroma)
     chroma_service.delete_note(note_id)
     chroma_service.add_note(note_id, req.text, {"created_at": row["created_at"], "tags": json.dumps(tags), "summary": summary})
 
-    return NoteResponse(id=note_id, created_at=row["created_at"], raw_text=req.text, tags=tags, summary=summary,
-                        pinned=bool(row["pinned"]), archived=bool(row["archived"]), audio_url=f"/api/notes/{note_id}/audio" if row["audio_path"] else None)
+    return _row_to_note(updated_row)
 
 
 

@@ -2206,3 +2206,55 @@ section:nth-of-type(3) .event-card::before {
   height: 40px;
   border-radius: 8px;
   accent
+/* ── Note colour coding (issue #29) ── */
+.note-color { border-left-width: 4px; border-left-style: solid; }
+.note-color-red    { border-left-color: #ef4444 !important; }
+.note-color-orange { border-left-color: #f97316 !important; }
+.note-color-yellow { border-left-color: #eab308 !important; }
+.note-color-green  { border-left-color: #22c55e !important; }
+.note-color-blue   { border-left-color: #3b82f6 !important; }
+.note-color-purple { border-left-color: #a855f7 !important; }
+
+/* Colour swatch picker in Edit Note modal */
+.color-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 2px;
+  flex-wrap: wrap;
+}
+.color-picker-label {
+  font-size: 0.8rem;
+  color: rgba(148, 163, 184, 0.85);
+  margin-right: 2px;
+}
+.color-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+.color-swatch:hover { transform: scale(1.15); }
+.color-swatch:disabled { cursor: not-allowed; opacity: 0.5; }
+.color-swatch-selected {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+.color-swatch-none {
+  background: transparent;
+  color: rgba(148, 163, 184, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+.color-swatch-red    { background: #ef4444; }
+.color-swatch-orange { background: #f97316; }
+.color-swatch-yellow { background: #eab308; }
+.color-swatch-green  { background: #22c55e; }
+.color-swatch-blue   { background: #3b82f6; }
+.color-swatch-purple { background: #a855f7; }

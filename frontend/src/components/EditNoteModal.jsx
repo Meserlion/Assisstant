@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useRecorder } from '../hooks/useRecorder'
-import { updateNote, transcribeAudio, rewriteNote } from '../api/client'
+import { updateNote, transcribeAudio, rewriteNote, setNoteColor } from '../api/client'
 
 export function EditNoteModal({ note, onClose, onSave }) {
+  const COLOR_SWATCHES = ['red', 'orange', 'yellow', 'green', 'blue', 'purple']
   const [text, setText] = useState(note.raw_text)
+  const [color, setColor] = useState(note.color || null)
   const [instruction, setInstruction] = useState('')
   const [saving, setSaving] = useState(false)
   const [rewriting, setRewriting] = useState(false)
@@ -17,7 +19,10 @@ export function EditNoteModal({ note, onClose, onSave }) {
     setSaving(true)
     setError(null)
     try {
-      const updated = await updateNote(note.id, text.trim())
+      let updated = await updateNote(note.id, text.trim())
+      if ((color || null) !== (note.color || null)) {
+        updated = await setNoteColor(note.id, color)
+      }
       onSave(updated)
     } catch (e) {
       setError(e.message || 'Failed to update note')
@@ -88,6 +93,30 @@ export function EditNoteModal({ note, onClose, onSave }) {
             rows={6}
             placeholder="Type your note content here..."
           />
+
+          {/* Colour swatch picker */}
+          <div className="color-picker-row">
+            <span className="color-picker-label">Colour</span>
+            <button
+              type="button"
+              className={'color-swatch color-swatch-none' + (!color ? ' color-swatch-selected' : '')}
+              onClick={() => setColor(null)}
+              disabled={busy}
+              title="No colour"
+              aria-label="No colour"
+            >×</button>
+            {COLOR_SWATCHES.map((c) => (
+              <button
+                key={c}
+                type="button"
+                className={'color-swatch color-swatch-' + c + (color === c ? ' color-swatch-selected' : '')}
+                onClick={() => setColor(c)}
+                disabled={busy}
+                title={c}
+                aria-label={c}
+              />
+            ))}
+          </div>
 
           {/* AI rewrite row */}
           <div className="ai-rewrite-row">
