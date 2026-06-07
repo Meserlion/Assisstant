@@ -2152,3 +2152,41 @@ section:nth-of-type(3) .event-card::before {
   flex-shrink: 0;
 }
 .recurrence-select:focus { outline: none; border-color: var(--accent); }
+
+/* ── Checklist inside note cards ── */
+.note-checklist {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 4px;
+}
+.checklist-item {
+  margin: 4px 0;
+}
+.checklist-item label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+.checklist-item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.checklist-item-done label span {
+  text-decoration: line-through;
+  opacity: 0.45;
+}
+.checklist-header {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted, rgba(255,255,255,0.45));
+  margin-top: 8px;
+  margin-bottom: 2px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}

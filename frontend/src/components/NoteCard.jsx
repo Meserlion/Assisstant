@@ -1,7 +1,36 @@
 import { useState, useRef } from 'react'
 import { createReminderFromText } from '../api/calendarClient'
+import { updateNote } from '../api/client'
 
-export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTag, tagCounts = {}, selected, onSelect, onPin, onArchive, isArchived }) {
+/**
+ * Parse raw_text into checklist items if it contains 2+ bullet lines.
+ * Supports: `- item`, `* item`, `- [ ] item`, `- [x] item`
+ * Returns { isList: bool, items: [{text, checked, isBullet}] }
+ */
+function parseChecklist(text) {
+  const lines = text.split('\n')
+  const items = lines.map(line => {
+    const checkedMatch = line.match(/^[-*]\s+\[x\]\s*(.*)/i)
+    if (checkedMatch) return { text: checkedMatch[1].trim(), checked: true, isBullet: true }
+    const uncheckedMatch = line.match(/^[-*]\s+\[\s*\]\s*(.*)/)
+    if (uncheckedMatch) return { text: uncheckedMatch[1].trim(), checked: false, isBullet: true }
+    const bulletMatch = line.match(/^[-*]\s+(.+)/)
+    if (bulletMatch) return { text: bulletMatch[1].trim(), checked: false, isBullet: true }
+    return { text: line, checked: false, isBullet: false }
+  })
+  const bulletCount = items.filter(i => i.isBullet).length
+  return { isList: bulletCount >= 2, items }
+}
+
+/** Rebuild raw_text from checklist items after a toggle. */
+function serializeChecklist(items) {
+  return items.map(item => {
+    if (!item.isBullet) return item.text
+    return item.checked ? '- [x] ' + item.text : '- [ ] ' + item.text
+  }).join('\n')
+}
+
+export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTag, tagCounts = {}, selected, onSelect, onPin, onArchive, isArchived, onUpdate }) {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
@@ -11,6 +40,7 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
   const archivingRef = useRef(false)
 
   const date = new Date(note.created_at).toLocaleString()
+  const { isList, items: checklistItems } = parseChecklist(note.raw_text)
 
   async function handleCreateReminder() {
     setLoading(true)
@@ -23,6 +53,19 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
       setError(e.message || "Failed to schedule reminder")
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleChecklistToggle(index) {
+    const updated = checklistItems.map((item, i) =>
+      i === index ? { ...item, checked: !item.checked } : item
+    )
+    const newText = serializeChecklist(updated)
+    try {
+      const updatedNote = await updateNote(note.id, newText)
+      if (onUpdate) onUpdate(updatedNote)
+    } catch (e) {
+      setError(e.message || 'Failed to save')
     }
   }
 
@@ -51,9 +94,6 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
 
   function handleAudioMetadata(e) {
     const audio = e.target
-    // MediaRecorder WebM files lack duration metadata -- browsers show 0:00.
-    // Seeking past the end forces the browser to scan and compute real duration.
-    // We wait until duration is finite before resetting to avoid premature reset.
     if (!isFinite(audio.duration) || audio.duration === 0) {
       audio.currentTime = 1e101
       const reset = () => {
@@ -94,7 +134,7 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
                 className={'pin-btn' + (note.pinned ? ' pin-active' : '')}
                 onClick={() => onPin(note.id, !note.pinned)}
                 title={note.pinned ? 'Unpin note' : 'Pin note'}
-              >📌</button>
+              >&#128204;</button>
             )}
             <button
               className="reminder-btn"
@@ -104,13 +144,36 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
             >
               {loading ? '⏳' : '🔔'}
             </button>
-            <button className="edit-btn" onClick={onEdit} title="Edit note">✏️</button>
-            <button className="split-btn" onClick={onSplit} title="Split note into two">✂️</button>
-            <button className="delete-btn" onClick={() => onDelete(note.id)} aria-label="Delete note">×</button>
+            <button className="edit-btn" onClick={onEdit} title="Edit note">&#9999;&#65039;</button>
+            <button className="split-btn" onClick={onSplit} title="Split note into two">&#9986;&#65039;</button>
+            <button className="delete-btn" onClick={() => onDelete(note.id)} aria-label="Delete note">x</button>
           </div>
         </div>
         <p className="note-summary">{note.summary}</p>
-        <p className="note-text">{note.raw_text}</p>
+
+        {isList ? (
+          <ul className="note-checklist">
+            {checklistItems.map((item, i) =>
+              item.isBullet ? (
+                <li key={i} className={'checklist-item' + (item.checked ? ' checklist-item-done' : '')}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={item.checked}
+                      onChange={() => handleChecklistToggle(i)}
+                    />
+                    <span>{item.text}</span>
+                  </label>
+                </li>
+              ) : item.text ? (
+                <li key={i} className="checklist-header">{item.text}</li>
+              ) : null
+            )}
+          </ul>
+        ) : (
+          <p className="note-text">{note.raw_text}</p>
+        )}
+
         <div className="note-tags">
           {note.tags.map((tag) => (
             <span

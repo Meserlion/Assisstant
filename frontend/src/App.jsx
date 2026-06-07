@@ -98,6 +98,10 @@ export default function App() {
     undoRef.current = null
   }
 
+  async function handleNoteUpdate(updatedNote) {
+    setNotes(prev => prev.map(n => n.id === updatedNote.id ? updatedNote : n))
+  }
+
   async function handlePin(id, pinned) {
     try {
       const updated = await pinNote(id, pinned)
@@ -292,6 +296,7 @@ export default function App() {
                     onPin={handlePin}
                     onArchive={showArchived ? handleUnarchive : handleArchive}
                     isArchived={showArchived}
+                    onUpdate={handleNoteUpdate}
                   />
                 ))}
               {!loading && notes.filter((n) => !activeTag || n.tags.includes(activeTag)).length === 0 && (

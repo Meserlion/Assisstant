@@ -1,15 +1,6 @@
 import json
-import re
 import anthropic
 from config import settings
-
-
-def _strip_json_fences(raw: str) -> str:
-    """Remove markdown code fences from LLM responses before JSON parsing."""
-    raw = raw.strip()
-    raw = re.sub("^```[a-z]*\\n?", "", raw)
-    raw = re.sub("\\n?```$", "", raw)
-    return raw.strip()
 
 client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
@@ -42,7 +33,11 @@ def tag_note(text: str, client_timezone: str = None, client_local_time: str = No
                 "content": prompt
             }]
         )
-        raw = _strip_json_fences(response.content[0].text)
+        raw = response.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
         data = json.loads(raw)
         return {
             "tags": data.get("tags", []),
@@ -169,29 +164,6 @@ def rewrite_note(text: str, instruction: str) -> str:
     return response.content[0].text.strip()
 
 
-def synthesize_merged_note(notes: list[dict]) -> str:
-    """Consolidate the raw texts of multiple notes into a single unified coherent note."""
-    notes_texts = "\n---\n".join(
-        f"Date: {n['created_at']}\nNote: {n['raw_text']}" for n in notes
-    )
-    prompt = (
-        "You are an editor. Consolidate the following notes into a single, unified, coherent note. "
-        "Combine duplicate information, resolve temporal order based on dates, and write a single "
-        "flowable, well-structured text. Keep all important facts, detail, and tone.\n\n"
-        "Source Notes:\n" + notes_texts + "\n\n"
-        "Unified Note:"
-    )
-    response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=1536,
-        messages=[{
-            "role": "user",
-            "content": prompt
-        }]
-    )
-    return response.content[0].text.strip()
-
-
 def cluster_notes(notes: list[dict]) -> dict:
     """Group notes by similarity and return a list of groups with consolidated summaries, and identify trash notes."""
     if not notes:
@@ -231,7 +203,11 @@ def cluster_notes(notes: list[dict]) -> dict:
         }]
     )
 
-    raw = _strip_json_fences(response.content[0].text)
+    raw = response.content[0].text.strip()
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
     try:
         data = json.loads(raw)
         return {
@@ -243,41 +219,17 @@ def cluster_notes(notes: list[dict]) -> dict:
         return {"groups": [], "trash_note_ids": []}
 
 
-def describe_image(image_bytes: bytes, mime_type: str) -> str:
-    """Send an image to Claude Vision and return a descriptive text to save as a note."""
-    import base64
-    b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
-    response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=1024,
-        messages=[{
-            "role": "user",
-            "content": [
-                {
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": mime_type,
-                        "data": b64,
-                    },
-                },
-                {
-                    "type": "text",
-                    "text": (
-                        "You are saving a personal note from a photo. "
-                        "Identify what type of image this is and extract only the useful information in the most compact, practical format.\n\n"
-                        "Rules by image type:\n"
-                        "- Handwritten list (shopping, to-do, etc.): transcribe as a clean bullet list. Fix obvious spelling. No intro text.\n"
-                        "- Product / price tag / receipt: item name + price. If multiple items, list them.\n"
-                        "- Shop / restaurant / location: name of place, address if visible, any relevant detail (hours, phone). One line per piece of info.\n"
-                        "- Menu: dish names and prices only. Skip descriptions unless key.\n"
-                        "- Document / sign / poster: transcribe the key text, skip decorative filler.\n"
-                        "- Real-world scene with no text: one concise sentence of what it is and where (if determinable).\n\n"
-                        "Never start with 'This image shows', 'I can see', or any meta-commentary. "
-                        "Output only the note content itself, as if the user typed it."
-                    ),
-                }
-            ],
-        }]
+def synthesize_merged_note(notes: list[dict]) -> str:
+    """Consolidate the raw texts of multiple notes into a single unified coherent note."""
+    notes_texts = "\n---\n".join(
+        f"Date: {n['created_at']}\nNote: {n['raw_text']}" for n in notes
     )
-    return response.content[0].text
+    prompt = (
+        "You are an editor consolidating personal notes. Follow these rules strictly:\n\n"
+        "1. PRESERVE DISTINCT TOPICS: If the notes cover clearly different subject areas "
+        "(e.g. shopping list vs home tasks vs work tasks), keep them as separate sections "
+        "with a short markdown header (e.g. '## Shopping List', '## Home Tasks'). "
+        "Do NOT blend unrelated topics into one paragraph.\n"
+        "2. REMOVE COMPLETED ITEMS: If a note mentions items that were already bought, "
+        "done, or completed (phrases like 'already got', 'already bought', 'done', "
+        "'finished', 'picked
