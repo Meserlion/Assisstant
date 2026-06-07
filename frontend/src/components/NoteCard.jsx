@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { createReminderFromText } from '../api/calendarClient'
-import { updateNote } from '../api/client'
+import { updateNote, researchNote } from '../api/client'
 
 /**
  * Parse raw_text into checklist items if it contains 2+ bullet lines.
@@ -32,6 +32,7 @@ function serializeChecklist(items) {
 
 export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTag, tagCounts = {}, selected, onSelect, onPin, onArchive, isArchived, onUpdate }) {
   const [loading, setLoading] = useState(false)
+  const [researching, setResearching] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
   const [swipeOffset, setSwipeOffset] = useState(0)
@@ -53,6 +54,21 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
       setError(e.message || "Failed to schedule reminder")
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleResearch() {
+    setResearching(true)
+    setError(null)
+    setResult(null)
+    try {
+      const updated = await researchNote(note.id)
+      if (onUpdate) onUpdate(updated)
+      setResult('Research added')
+    } catch (e) {
+      setError(e.message || 'Research failed')
+    } finally {
+      setResearching(false)
     }
   }
 
@@ -137,6 +153,14 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
               >&#128204;</button>
             )}
             <button
+              className="research-btn"
+              onClick={handleResearch}
+              disabled={researching}
+              title="Research this note topic"
+            >
+              {researching ? '⏳' : '🔍'}
+            </button>
+            <button
               className="reminder-btn"
               onClick={handleCreateReminder}
               disabled={loading}
@@ -179,25 +203,4 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
             <span
               key={tag}
               className={'tag' + (tag === activeTag ? ' tag-active' : '')}
-              onClick={() => onTagClick && onTagClick(tag)}
-              style={{ cursor: onTagClick ? 'pointer' : 'default' }}
-            >{tag}{tagCounts[tag] > 1 && <sup className="tag-count">{tagCounts[tag]}</sup>}</span>
-          ))}
-        </div>
-
-        {note.audio_url && (
-          <audio
-            className="note-audio"
-            src={note.audio_url + '?key=' + encodeURIComponent(localStorage.getItem('api_key') || '')}
-            controls
-            preload="metadata"
-            onLoadedMetadata={handleAudioMetadata}
-          />
-        )}
-
-        {result && <p className="card-status success">{result}</p>}
-        {error && <p className="card-status error">{error}</p>}
-      </div>
-    </div>
-  )
-}
+              onClick={() => onTagClick && onTa
