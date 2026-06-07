@@ -41,6 +41,8 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
   const archivingRef = useRef(false)
 
   const date = new Date(note.created_at).toLocaleString()
+  // eslint-disable-next-line react-hooks/purity
+  const isAged = new Date(note.created_at).getTime() < Date.now() - 7 * 24 * 60 * 60 * 1000
   const { isList, items: checklistItems } = parseChecklist(note.raw_text)
 
   async function handleCreateReminder() {
@@ -127,7 +129,7 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
       <div className="note-card-archive-zone" aria-hidden="true">{isArchived ? 'Unarchive' : 'Archive'}</div>
       <div className="note-card-delete-zone" aria-hidden="true">Delete</div>
       <div
-        className={'note-card' + (selected ? ' note-card-selected' : '')}
+        className={'note-card' + (selected ? ' note-card-selected' : '') + (isAged ? ' note-aged' : '')}
         style={{ transform: 'translateX(' + swipeOffset + 'px)', transition: swipeOffset === 0 ? 'transform 0.2s ease' : 'none' }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}

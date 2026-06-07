@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { hasApiKey, captureNote, captureImageNote, createTextNote, listNotes, deleteNote, transcribeAudio, pinNote, archiveNote } from './api/client'
+import { hasApiKey, captureNote, createTextNote, listNotes, deleteNote, transcribeAudio, pinNote, archiveNote } from './api/client'
 import { useRecorder } from './hooks/useRecorder'
 import { ApiKeySetup } from './components/ApiKeySetup'
 import { NoteCard } from './components/NoteCard'
@@ -25,11 +25,11 @@ export default function App() {
   const [error, setError] = useState(null)
   const { recording, start, stop } = useRecorder()
   const { recording: textRecording, start: textStart, stop: textStop } = useRecorder()
-  const imageInputRef = useRef(null)
   const [undoToast, setUndoToast] = useState(null)
   const undoRef = useRef(null)
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [showArchived, setShowArchived] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const fetchNotes = useCallback(async (archived = false) => {
     setLoading(true)
@@ -151,39 +151,6 @@ export default function App() {
     await Promise.all(ids.map(id => deleteNote(id).catch(() => {})))
   }
 
-  async function handleImageCapture(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    e.target.value = ''
-    setCapturing(true)
-    setError(null)
-    try {
-      // Convert to JPEG via canvas — handles HEIC and oversized images from cameras
-      const jpeg = await new Promise((resolve, reject) => {
-        const img = new Image()
-        const url = URL.createObjectURL(file)
-        img.onload = () => {
-          URL.revokeObjectURL(url)
-          const MAX = 1920
-          const scale = Math.min(1, MAX / Math.max(img.width, img.height))
-          const canvas = document.createElement('canvas')
-          canvas.width = Math.round(img.width * scale)
-          canvas.height = Math.round(img.height * scale)
-          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
-          canvas.toBlob((blob) => blob ? resolve(new File([blob], 'photo.jpg', { type: 'image/jpeg' })) : reject(new Error('Image conversion failed')), 'image/jpeg', 0.85)
-        }
-        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not load image')) }
-        img.src = url
-      })
-      const note = await captureImageNote(jpeg)
-      setNotes((prev) => [note, ...prev])
-    } catch (err) {
-      setError(err.message || 'Image upload failed')
-    } finally {
-      setCapturing(false)
-    }
-  }
-
   async function handleTextSubmit(e) {
     e.preventDefault()
     if (!textInput.trim() || capturing) return
@@ -232,6 +199,13 @@ export default function App() {
 
   if (!ready) return <ApiKeySetup onDone={() => setReady(true)} />
 
+  const filteredNotes = notes.filter((n) => {
+    const matchesTag = !activeTag || n.tags.includes(activeTag)
+    const q = searchQuery.trim().toLowerCase()
+    const matchesSearch = !q || n.raw_text.toLowerCase().includes(q) || n.summary.toLowerCase().includes(q)
+    return matchesTag && matchesSearch
+  })
+
   return (
     <div className="app">
       <header>
@@ -249,6 +223,19 @@ export default function App() {
         {tab === 'notes' && (
           <>
             {loading && <p className="status">Loading…</p>}
+
+            <div className="notes-search-row">
+              <input
+                type="search"
+                className="notes-search-input"
+                placeholder="Search notes…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              {searchQuery && (
+                <button className="notes-search-clear" onClick={() => setSearchQuery('')} title="Clear search">✕</button>
+              )}
+            </div>
 
             <div className="notes-toolbar">
               {activeTag ? (
@@ -279,28 +266,34 @@ export default function App() {
             </div>
 
             <div className="notes-list">
-              {notes
-                .filter((n) => !activeTag || n.tags.includes(activeTag))
-                .map((note) => (
-                  <NoteCard
-                    key={note.id}
-                    note={note}
-                    onDelete={handleDelete}
-                    onEdit={() => setEditingNote(note)}
-                    onSplit={() => setSplittingNote(note)}
-                    onTagClick={(tag) => setActiveTag(tag === activeTag ? null : tag)}
-                    activeTag={activeTag}
-                    tagCounts={notes.reduce((acc, n) => { n.tags.forEach(t => { acc[t] = (acc[t] || 0) + 1 }); return acc }, {})}
-                    selected={selectedIds.has(note.id)}
-                    onSelect={handleToggleSelect}
-                    onPin={handlePin}
-                    onArchive={showArchived ? handleUnarchive : handleArchive}
-                    isArchived={showArchived}
-                    onUpdate={handleNoteUpdate}
-                  />
-                ))}
-              {!loading && notes.filter((n) => !activeTag || n.tags.includes(activeTag)).length === 0 && (
-                <p className="empty">{activeTag ? `No notes tagged "${activeTag}".` : showArchived ? 'No archived notes.' : 'No notes yet. Hold the button to record your first one.'}</p>
+              {filteredNotes.map((note) => (
+                <NoteCard
+                  key={note.id}
+                  note={note}
+                  onDelete={handleDelete}
+                  onEdit={() => setEditingNote(note)}
+                  onSplit={() => setSplittingNote(note)}
+                  onTagClick={(tag) => setActiveTag(tag === activeTag ? null : tag)}
+                  activeTag={activeTag}
+                  tagCounts={notes.reduce((acc, n) => { n.tags.forEach(t => { acc[t] = (acc[t] || 0) + 1 }); return acc }, {})}
+                  selected={selectedIds.has(note.id)}
+                  onSelect={handleToggleSelect}
+                  onPin={handlePin}
+                  onArchive={showArchived ? handleUnarchive : handleArchive}
+                  isArchived={showArchived}
+                  onUpdate={handleNoteUpdate}
+                />
+              ))}
+              {!loading && filteredNotes.length === 0 && (
+                <p className="empty">
+                  {searchQuery.trim()
+                    ? `No notes match "${searchQuery}".`
+                    : activeTag
+                      ? `No notes tagged "${activeTag}".`
+                      : showArchived
+                        ? 'No archived notes.'
+                        : 'No notes yet. Hold the button to record your first one.'}
+                </p>
               )}
             </div>
 
@@ -308,22 +301,6 @@ export default function App() {
               {capturing && <p className="status">Saving note…</p>}
               {error && <p className="error">{error}</p>}
               <div className="capture-row">
-                <input
-                  ref={imageInputRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  style={{ display: 'none' }}
-                  onChange={handleImageCapture}
-                />
-                <button
-                  className="mode-toggle-btn"
-                  onClick={() => imageInputRef.current?.click()}
-                  title="Take or upload a photo note"
-                  disabled={capturing}
-                >
-                  📷
-                </button>
                 <button
                   className={`mode-toggle-btn ${textMode ? 'active' : ''}`}
                   onClick={() => setTextMode((m) => !m)}
