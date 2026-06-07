@@ -344,6 +344,7 @@ def update_note(note_id: str, req: NoteUpdateRequest):
                         pinned=bool(row["pinned"]), archived=bool(row["archived"]), audio_url=f"/api/notes/{note_id}/audio" if row["audio_path"] else None)
 
 
+
 @router.post("/{note_id}/research", response_model=NoteResponse, dependencies=[Depends(verify_key)])
 def research_note(note_id: str):
     db = get_db()
@@ -534,6 +535,7 @@ async def query_notes_voice(audio: UploadFile = File(...), history: str = Form("
     return query_notes(QueryRequest(text=text, history=history_list))
 
 
+
 _groups_cache: dict = {"fingerprint": None, "result": None}
 
 
@@ -655,4 +657,45 @@ def merge_note_group(req: MergeGroupRequest):
     
     if len(rows) < len(req.note_ids):
         db.close()
-        raise
+        raise HTTPException(status_code=400, detail="Some notes were not found")
+        
+    notes_list = [
+        {
+            "id": r["id"],
+            "created_at": r["created_at"],
+            "raw_text": r["raw_text"],
+            "tags": json.loads(r["tags"]),
+            "summary": r["summary"],
+        }
+        for r in rows
+    ]
+
+    # Synthesize unified text
+    unified_text = claude_service.synthesize_merged_note(notes_list)
+
+    # Generate tags/summary for unified text
+    analysis = claude_service.tag_note(unified_text)
+    tags = analysis["tags"]
+    summary = analysis["summary"] or req.summary
+
+    # Save the consolidated note — always as a new (non-archived) note so it
+    # surfaces in the main feed regardless of the archived status of source notes.
+    note_id = str(uuid.uuid4())
+    created_at = datetime.now(timezone.utc).isoformat()
+
+    db.execute(
+        "INSERT INTO notes (id, created_at, raw_text, tags, summary, archived) VALUES (?, ?, ?, ?, ?, ?)",
+        (note_id, created_at, unified_text, json.dumps(tags), summary, 0),
+    )
+
+    # Delete the old notes
+    db.execute(f"DELETE FROM notes WHERE id IN ({placeholders})", req.note_ids)
+    db.commit()
+    db.close()
+
+    # Update Vector Store
+    chroma_service.add_note(note_id, unified_text, {"created_at": created_at, "tags": json.dumps(tags), "summary": summary})
+    for old_id in req.note_ids:
+        chroma_service.delete_note(old_id)
+
+    return NoteResponse(id=note_id, created_at=created_at, raw_text=unified_text, tags=tags, summary=summary)
