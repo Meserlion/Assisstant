@@ -217,7 +217,7 @@ def cluster_notes(notes: list[dict]) -> dict:
         
     prompt = (
         "You are an assistant that organizes notes. Analyze the input notes and perform two tasks:\n\n"
-        "1. Group notes into logical semantic clusters/topics. Each cluster must consist of 2 or more notes that are highly related (e.g. talking about the same project, event, or topic). Notes that do not fit into any group should be left out of the groups.\n"
+        "1. Group notes into logical semantic clusters/topics. Each cluster must consist of 2 or more notes that are highly related because they share the SAME SPECIFIC subject \u2014 the same project, event, trip, person, or concrete task. Do NOT group notes merely because they share a broad life-area or theme (e.g. do not lump 'shopping' together with 'chores' just because both are household/home-related; do not merge a shopping list with a maintenance to-do list). When in doubt, leave a note ungrouped. Also do not group notes that are organized under different section headers (e.g. '## Shopping List' vs '## Chores') unless they clearly concern the same specific subject. Notes that do not fit into any group should be left out of the groups.\n"
         "2. Identify any notes that are empty, contain only transcription errors/artifacts (like 'Thank you for watching', 'you', 'thank you' with no context), or are completely nonsensical (meaningless speech fragments, repetitive syllables, or gibberish that lacks any useful information or context). These notes should be marked as trash.\n\n"
         "Return a JSON object containing two keys:\n"
         "- 'groups': an array of objects. Each group object must have:\n"
