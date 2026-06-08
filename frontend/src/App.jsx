@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { hasApiKey, captureNote, createTextNote, listNotes, deleteNote, transcribeAudio, pinNote, archiveNote } from './api/client'
+import { hasApiKey, captureNote, captureImageNote, createTextNote, listNotes, deleteNote, transcribeAudio, pinNote, archiveNote } from './api/client'
 import { useRecorder } from './hooks/useRecorder'
 import { ApiKeySetup } from './components/ApiKeySetup'
 import { NoteCard } from './components/NoteCard'
@@ -27,6 +27,7 @@ export default function App() {
   const { recording: textRecording, start: textStart, stop: textStop } = useRecorder()
   const [undoToast, setUndoToast] = useState(null)
   const undoRef = useRef(null)
+  const imageInputRef = useRef(null)
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [showArchived, setShowArchived] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -61,6 +62,22 @@ export default function App() {
       setError(e.message)
     } finally {
       setCapturing(false)
+    }
+  }
+
+  async function handleImageSelect(e) {
+    const file = e.target.files && e.target.files[0]
+    if (!file) return
+    setCapturing(true)
+    setError(null)
+    try {
+      await captureImageNote(file)
+      await fetchNotes()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setCapturing(false)
+      e.target.value = ''
     }
   }
 
@@ -348,6 +365,23 @@ export default function App() {
                     disabled={capturing}
                   />
                 )}
+                <button
+                  type="button"
+                  className="mode-toggle-btn"
+                  onClick={() => imageInputRef.current && imageInputRef.current.click()}
+                  title="Take or upload a picture"
+                  disabled={capturing}
+                >
+                  📷
+                </button>
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  style={{ display: 'none' }}
+                  onChange={handleImageSelect}
+                />
               </div>
             </div>
           </>
