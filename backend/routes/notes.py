@@ -1,5 +1,7 @@
 import asyncio
 import hashlib
+import threading
+import time
 import json
 import uuid
 import tempfile
@@ -70,14 +72,48 @@ class CleanupRequest(BaseModel):
     note_ids: list[str] = []
 
 
+def _background_index_note(note_id: str, text: str, created_at: str, tags: list, summary: str):
+    """Vectorize the note in Chroma off the critical path. On failure the note stays in SQLite
+    but won't appear in semantic search — logged loudly so it can be re-saved/retried."""
+    t0 = time.perf_counter()
+    try:
+        chroma_service.add_note(note_id, text, {"created_at": created_at, "tags": json.dumps(tags), "summary": summary})
+        print(f"NOTE_TIMING chroma_bg={time.perf_counter()-t0:.2f}s note_id={note_id}")
+    except Exception as e:
+        print(f"CHROMA_SYNC_FAILURE note_id={note_id} error={e} — note saved but not searchable")
+
+
+def _background_calendar_sync(reminder_id: str, title: str, remind_at: str):
+    """Sync an auto-created reminder to Google Calendar off the critical path."""
+    from services import google_calendar
+    from datetime import timedelta
+    if not google_calendar.is_connected():
+        return
+    try:
+        remind_at_dt = datetime.fromisoformat(remind_at.replace("Z", "+00:00"))
+        end_iso = (remind_at_dt + timedelta(hours=1)).isoformat()
+        event_id = google_calendar.create_event(title, remind_at, end_iso)
+        db = get_db()
+        db.execute("UPDATE reminders SET google_event_id = ? WHERE id = ?", (event_id, reminder_id))
+        db.commit()
+        db.close()
+    except Exception as e:
+        print(f"Failed to sync auto-reminder to Google Calendar: {e}")
+
+
 def _save_note_from_text(text: str, client_timezone: str = None, client_local_time: str = None) -> NoteResponse:
-    """Shared helper: analyse text, persist to SQLite + Chroma, auto-create reminder if needed."""
+    """Shared helper: analyse text, persist to SQLite, auto-create reminder if needed.
+    Chroma vectorization and Google Calendar sync run in background threads so the
+    response returns as soon as the note is analysed and saved."""
+    t0 = time.perf_counter()
     analysis = claude_service.tag_note(text, client_timezone, client_local_time)
+    t_analyze = time.perf_counter() - t0
     tags = analysis["tags"]
     summary = analysis["summary"]
     note_id = str(uuid.uuid4())
     created_at = datetime.now(timezone.utc).isoformat()
 
+    t1 = time.perf_counter()
     db = get_db()
     db.execute(
         "INSERT INTO notes (id, created_at, raw_text, tags, summary) VALUES (?, ?, ?, ?, ?)",
@@ -85,21 +121,10 @@ def _save_note_from_text(text: str, client_timezone: str = None, client_local_ti
     )
     db.commit()
     db.close()
+    t_sqlite = time.perf_counter() - t1
 
-    try:
-        chroma_service.add_note(note_id, text, {"created_at": created_at, "tags": json.dumps(tags), "summary": summary})
-    except Exception as e:
-        print(f"CHROMA_SYNC_FAILURE note_id={note_id} error={e} — rolling back SQLite insert")
-        try:
-            db = get_db()
-            db.execute("DELETE FROM notes WHERE id = ?", (note_id,))
-            db.commit()
-            db.close()
-        except Exception as rb_err:
-            print(f"CHROMA_ROLLBACK_FAILURE note_id={note_id} rollback_error={rb_err}")
-        raise HTTPException(status_code=500, detail="Failed to index note for search. Note was not saved.")
-
-    audio_path = None  # populated by capture endpoint when audio is saved
+    # Vectorize in the background — keeps embedding latency out of the user-facing path.
+    threading.Thread(target=_background_index_note, args=(note_id, text, created_at, tags, summary), daemon=True).start()
 
     if analysis["is_reminder"] and analysis["reminder_details"]:
         rem_details = analysis["reminder_details"]
@@ -114,20 +139,9 @@ def _save_note_from_text(text: str, client_timezone: str = None, client_local_ti
             )
             db.commit()
             db.close()
-            from services import google_calendar
-            from datetime import timedelta
-            if google_calendar.is_connected():
-                try:
-                    remind_at_dt = datetime.fromisoformat(remind_at.replace("Z", "+00:00"))
-                    end_iso = (remind_at_dt + timedelta(hours=1)).isoformat()
-                    event_id = google_calendar.create_event(title, remind_at, end_iso)
-                    db = get_db()
-                    db.execute("UPDATE reminders SET google_event_id = ? WHERE id = ?", (event_id, reminder_id))
-                    db.commit()
-                    db.close()
-                except Exception as e:
-                    print(f"Failed to sync auto-reminder to Google Calendar: {e}")
+            threading.Thread(target=_background_calendar_sync, args=(reminder_id, title, remind_at), daemon=True).start()
 
+    print(f"NOTE_TIMING analyze={t_analyze:.2f}s sqlite={t_sqlite:.2f}s note_id={note_id}")
     return NoteResponse(id=note_id, created_at=created_at, raw_text=text, tags=tags, summary=summary, pinned=False, archived=False, audio_url=None)
 
 
@@ -137,17 +151,20 @@ async def capture_note(
     client_timezone: str = Form(None),
     client_local_time: str = Form(None)
 ):
+    t_start = time.perf_counter()
     suffix = os.path.splitext(audio.filename or "audio.webm")[1] or ".webm"
     audio_bytes = await audio.read()
 
-    # Transcribe from a temp file
+    # Transcribe from a temp file — in a worker thread so the event loop isn't blocked
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         tmp.write(audio_bytes)
         tmp_path = tmp.name
+    t0 = time.perf_counter()
     try:
-        text = whisper_service.transcribe(tmp_path)
+        text = await asyncio.to_thread(whisper_service.transcribe, tmp_path)
     finally:
         os.unlink(tmp_path)
+    t_transcribe = time.perf_counter() - t0
 
     note = await asyncio.to_thread(_save_note_from_text, text, client_timezone, client_local_time)
 
@@ -158,8 +175,22 @@ async def capture_note(
     with open(audio_path, "wb") as f:
         f.write(audio_bytes)
 
+    db = get_db()
+    db.execute("UPDATE notes SET audio_path = ? WHERE id = ?", (audio_path, note.id))
+    db.commit()
+    db.close()
+
     # MediaRecorder WebM files lack duration metadata, causing browsers to show 0:00.
-    # Remux with ffmpeg (-c copy, no re-encode) to write a proper duration into the header.
+    # Remux with ffmpeg (-c copy, no re-encode) in the background — playback works
+    # immediately from the raw file; the header fix lands a moment later.
+    threading.Thread(target=_background_remux, args=(audio_path, suffix), daemon=True).start()
+
+    print(f"NOTE_TIMING transcribe={t_transcribe:.2f}s capture_total={time.perf_counter()-t_start:.2f}s note_id={note.id}")
+    return NoteResponse(**{**note.model_dump(), "audio_url": f"/api/notes/{note.id}/audio"})
+
+
+def _background_remux(audio_path: str, suffix: str):
+    """Rewrite WebM duration header with ffmpeg off the critical path."""
     import subprocess
     remux_path = audio_path + ".remux" + suffix
     try:
@@ -177,13 +208,6 @@ async def capture_note(
                 os.unlink(remux_path)
             except Exception:
                 pass
-
-    db = get_db()
-    db.execute("UPDATE notes SET audio_path = ? WHERE id = ?", (audio_path, note.id))
-    db.commit()
-    db.close()
-
-    return NoteResponse(**{**note.model_dump(), "audio_url": f"/api/notes/{note.id}/audio"})
 
 
 @router.post("/image", response_model=NoteResponse, dependencies=[Depends(verify_key)])
