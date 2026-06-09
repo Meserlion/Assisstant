@@ -47,3 +47,7 @@ The **Assistant** is a decoupled Client-Server application:
     *   Implemented background calendar sync (`sync_calendar_events_to_notes`) inside `calendar.py` that inserts/updates Google Calendar events as special notes with a `["calendar"]` tag.
     *   Vectorizes calendar events in Chroma DB to make them searchable in the RAG conversational Ask tab.
     *   Modified notes listing and consolidation endpoints in `notes.py` to exclude notes tagged with `calendar` from the main notes feed and clustering processes.
+
+## Deployment Verification (required)
+
+After any push to `main`, do NOT consider the task complete until the "Deploy to Hetzner" GitHub Actions run for that commit shows **Status: Success** (runs take ~20–45s). If it fails, investigate and fix before ending the session. The workflow's post-deploy health check auto-files a GitHub issue on failure — check for that too.
