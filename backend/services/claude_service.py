@@ -130,7 +130,7 @@ def _build_query_messages(query: str, context_notes: list[dict], history: list[d
 def answer_query(query: str, context_notes: list[dict], history: list[dict] = None, schedule_context: str = "") -> str:
     """Answer a search query using retrieved notes as context."""
     messages = _build_query_messages(query, context_notes, history or [], schedule_context)
-    response = client.messages.create(
+    response = client.beta.prompt_caching.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1024,
         system=_CACHED_SYSTEM,
@@ -142,7 +142,7 @@ def answer_query(query: str, context_notes: list[dict], history: list[dict] = No
 def stream_answer_query(query: str, context_notes: list[dict], history: list[dict] = None, schedule_context: str = ""):
     """Yield text chunks for streaming the answer."""
     messages = _build_query_messages(query, context_notes, history or [], schedule_context)
-    with client.messages.stream(
+    with client.beta.prompt_caching.messages.stream(
         model="claude-sonnet-4-6",
         max_tokens=1024,
         system=_CACHED_SYSTEM,
