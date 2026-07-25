@@ -2097,8 +2097,13 @@ section:nth-of-type(3) .event-card::before {
   z-index: 1;
   background: var(--surface);
 }
-.note-card-wrapper .note-card {
-  background: rgb(22, 28, 45);
+.note-card-wrapper .note-card,
+.note-card-wrapper .note-card:hover,
+.note-card-wrapper .note-card.note-aged {
+  /* Opaque so the archive/delete swipe zones behind never show through (fixes #39) */
+  background: #1e1610;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 /* ── Note checkbox (bulk select) ── */
