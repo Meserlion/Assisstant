@@ -96,7 +96,7 @@ body::after {
   flex-shrink: 0;
 }
 
-.search-toggle-btn {
+.header-btn {
   background: none;
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: var(--text-secondary);
@@ -112,8 +112,8 @@ body::after {
   transition: all 0.15s;
 }
 
-.search-toggle-btn:hover,
-.search-toggle-btn.active {
+.header-btn:hover,
+.header-btn.active {
   border-color: rgba(244, 114, 182, 0.5);
   background: rgba(244, 114, 182, 0.12);
   color: #f9a8d4;

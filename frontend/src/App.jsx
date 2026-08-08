@@ -235,12 +235,28 @@ export default function App() {
         </nav>
         <div className="header-actions">
           {tab === 'notes' && (
-            <button
-              className={`search-toggle-btn${searchOpen ? ' active' : ''}`}
-              onClick={() => { if (searchOpen) setSearchQuery(''); setSearchOpen((v) => !v) }}
-              title={searchOpen ? 'Hide search' : 'Search notes'}
-              aria-label="Toggle search"
-            >🔍</button>
+            <>
+              <button
+                className={`header-btn${searchOpen ? ' active' : ''}`}
+                onClick={() => { if (searchOpen) setSearchQuery(''); setSearchOpen((v) => !v) }}
+                title={searchOpen ? 'Hide search' : 'Search notes'}
+                aria-label="Toggle search"
+              >🔍</button>
+              <button
+                className={`header-btn${showArchived ? ' active' : ''}`}
+                onClick={() => setShowArchived((v) => !v)}
+                title={showArchived ? 'Hide archived' : 'Show archived'}
+                aria-label="Toggle archived"
+              >{showArchived ? '📂' : '📁'}</button>
+              {notes.length > 0 && (
+                <button
+                  className="header-btn"
+                  onClick={handleExport}
+                  title="Export all notes as Markdown"
+                  aria-label="Export notes as Markdown"
+                >↓</button>
+              )}
+            </>
           )}
           <button className="report-btn" onClick={() => setReportOpen(true)} title="Report issue or suggest feature">?</button>
         </div>
@@ -278,18 +294,6 @@ export default function App() {
                 {selectedIds.size > 0 && (
                   <button className="bulk-delete-btn" onClick={handleBulkDelete}>
                     🗑 Delete {selectedIds.size}
-                  </button>
-                )}
-                <button
-                  className={`archive-toggle-btn${showArchived ? ' active' : ''}`}
-                  onClick={() => setShowArchived(v => !v)}
-                  title={showArchived ? 'Hide archived' : 'Show archived'}
-                >
-                  {showArchived ? '📂 Archived' : '📁 Archive'}
-                </button>
-                {notes.length > 0 && (
-                  <button className="export-btn" onClick={handleExport} title="Export all notes as Markdown">
-                    ↓ Export
                   </button>
                 )}
               </div>
