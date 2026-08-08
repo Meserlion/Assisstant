@@ -29,7 +29,11 @@ Rules:
   (`backend/database.py`, `README.md`, and a CSS rule fixed in `697f4a7`) have been pushed to `main`
   truncated mid-line. After writing any file, confirm it still ends with a complete line.
 - One task per commit. Commit message format: `fix: <task title> (TD<n>)`.
-- After any change under `frontend/`, run `npm run lint` in `frontend/` and confirm zero errors.
+- After any change under `frontend/`, run `npm run lint` in `frontend/` and confirm zero errors, then
+  run `npm run build && npm run test:smoke`. The smoke tests gate the deploy. If they fail and you did
+  not intend to change the app's structure, your change is wrong — fix the code. If the task genuinely
+  changes the shell, update `frontend/tests/smoke.spec.js` in the same commit. Never weaken an
+  assertion to get green.
 - After pushing to `main`, confirm the "Deploy to Hetzner" Actions run shows **Success** before starting the next task.
 - Line numbers are accurate as of commit `ce7b976`. If a line has moved, search for the quoted
   text instead — the quoted text is authoritative, the line number is only a hint.

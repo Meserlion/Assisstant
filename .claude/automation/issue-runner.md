@@ -96,6 +96,36 @@ short report saying there was nothing to do.
    CSS rule fixed in `697f4a7`). This check is not optional.
 4. Verify the change: no syntax errors, consistent with surrounding code, matches the issue's request.
 5. After **any** change under `frontend/`, run `npm run lint` in `frontend/` and confirm zero errors.
+6. After any change under `frontend/`, also run the smoke tests — see below.
+
+### The frontend deploy gate
+
+`frontend/tests/smoke.spec.js` loads the built app in a real browser and asserts the shell is
+intact: `#root` renders, no uncaught page errors, all four tab buttons and the report button exist,
+and each tab activates when clicked. It runs in `build-check`, which `deploy` depends on, so
+**a failure blocks the deploy entirely.**
+
+Run it before you push:
+
+```bash
+cd frontend
+npx playwright install chromium    # first run only
+npm run build
+npm run test:smoke
+```
+
+**If the smoke tests fail and you did not intend to change the app's structure, the gate is doing
+its job — your change is wrong. Fix the code.**
+
+**If the issue genuinely asks you to change that structure** — move the tabs to the bottom bar,
+rename a tab, remove the report button — then update `frontend/tests/smoke.spec.js` in the **same
+commit** so it asserts the new intended structure. A shell change and its test change belong
+together; splitting them means one commit deploys with a stale gate.
+
+> **Never delete, skip, or weaken an assertion just to make the tests pass.** If a test blocks you
+> and you cannot tell whether the structure change is intended, that is exactly the case for asking
+> on the issue (step 5) rather than editing the test. Removing an assertion to get green silently
+> removes the only check that would catch a broken frontend — `/api/health` returns 200 regardless.
 
 ---
 
@@ -233,6 +263,8 @@ Stop and report rather than improvising if any of these occur:
 - The working tree is dirty, or ahead of `origin/main`, at step 0.
 - A file you are told to edit does not contain the expected text.
 - `npm run lint` fails and the fix is not obvious.
+- The frontend smoke tests fail and you did not intend to change the app's structure.
+- You are tempted to delete or weaken a smoke-test assertion to get a green run.
 - The deploy health check does not return `200`.
 - A rule in this file is unclear or blocks the task (open an `Instruction gap:` issue).
 - Carrying out an issue literally would break something the issue does not mention — ask on the
