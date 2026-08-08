@@ -57,4 +57,8 @@ def init_db():
             token_json TEXT NOT NULL
         )
     """)
-    # Indexes for the common feed q
+    # Indexes for the common feed query (archived + pinned + created_at)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_notes_list ON notes(archived, pinned DESC, created_at DESC)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_notes_created ON notes(created_at)")
+    conn.commit()
+    conn.close()
