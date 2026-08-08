@@ -267,7 +267,7 @@ Keep `<TEXT_VAR>` exactly as it already is in each spot. Do not swap them.
 
 ---
 
-### [ ] TD7. Refresh the note list with the correct archived filter
+### [x] TD7. Refresh the note list with the correct archived filter
 
 **File:** `frontend/src/App.jsx` (lines 60 and 75)
 

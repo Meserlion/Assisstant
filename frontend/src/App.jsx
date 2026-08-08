@@ -58,7 +58,7 @@ export default function App() {
     try {
       const blob = await stop()
       await captureNote(blob)
-      await fetchNotes()
+      await fetchNotes(showArchived)
     } catch (e) {
       setError(e.message)
     } finally {
@@ -73,7 +73,7 @@ export default function App() {
     setError(null)
     try {
       await captureImageNote(file)
-      await fetchNotes()
+      await fetchNotes(showArchived)
     } catch (err) {
       setError(err.message)
     } finally {
