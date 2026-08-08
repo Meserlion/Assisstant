@@ -112,8 +112,8 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
 
   return (
     <div className="note-card-wrapper">
-      <div className="note-card-archive-zone" aria-hidden="true">{isArchived ? 'Unarchive' : 'Archive'}</div>
-      <div className="note-card-delete-zone" aria-hidden="true">Delete</div>
+      <div className="note-card-archive-zone" aria-hidden="true" style={{ opacity: swipeOffset > 0 ? 1 : 0 }}>{isArchived ? 'Unarchive' : 'Archive'}</div>
+      <div className="note-card-delete-zone" aria-hidden="true" style={{ opacity: swipeOffset < 0 ? 1 : 0 }}>Delete</div>
       <div
         className={'note-card' + (selected ? ' note-card-selected' : '') + (isAged ? ' note-aged' : '') + (note.color ? ' note-color note-color-' + note.color : '')}
         style={{ transform: 'translateX(' + swipeOffset + 'px)', transition: swipeOffset === 0 ? 'transform 0.2s ease' : 'none' }}
