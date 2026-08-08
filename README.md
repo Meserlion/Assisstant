@@ -48,6 +48,7 @@ A personal voice-first note-taking and reminder app with AI-powered organisation
 
 - Python 3.11+
 - Node 18+
+- ffmpeg (for audio remuxing — fixes browser seeking on recorded WebM files)
 - An [Anthropic API key](https://console.anthropic.com/)
 
 ### Backend
@@ -111,4 +112,58 @@ Copy `backend/.env.example` to `backend/.env` and fill in the values.
 | `GOOGLE_CLIENT_ID` | | Google OAuth client ID (Calendar sync) |
 | `GOOGLE_CLIENT_SECRET` | | Google OAuth client secret |
 | `GOOGLE_REDIRECT_URI` | | OAuth callback URL, e.g. `https://yourdomain.com/api/calendar/oauth/callback` |
-| `VAPID_PRIVATE_KEY` | | VAPID private ke
+| `VAPID_PRIVATE_KEY` | | VAPID private key (push notifications) |
+| `VAPID_PUBLIC_KEY` | | VAPID public key |
+| `VAPID_EMAIL` | | Contact email for VAPID |
+
+### Generating VAPID keys (for push notifications)
+
+```bash
+pip install pywebpush
+python -c "from py_vapid import Vapid; v = Vapid(); v.generate_keys(); print('Private:', v.private_pem().decode()); print('Public:', v.public_key.public_bytes(__import__('cryptography.hazmat.primitives.serialization', fromlist=['Encoding','PublicFormat']).Encoding.X962, __import__('cryptography.hazmat.primitives.serialization', fromlist=['Encoding','PublicFormat']).PublicFormat.UncompressedPoint).hex())"
+```
+
+Or more simply — use the [`web-push` npm package](https://www.npmjs.com/package/web-push):
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+Paste the output into `VAPID_PRIVATE_KEY` and `VAPID_PUBLIC_KEY`.
+
+## Google Calendar integration
+
+1. Create a Google Cloud project and enable the Calendar API.
+2. Add `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REDIRECT_URI` to `.env`.
+3. Open **Settings → Connect Google Calendar** in the app and complete the OAuth flow.
+
+Once connected, reminders sync to Google Calendar, and your upcoming events appear on the calendar grid and are searchable via Ask.
+
+## Data storage
+
+All data lives in `backend/data/`:
+
+| Path | Contents |
+|---|---|
+| `notes.db` | SQLite database (notes, reminders, push subscriptions) |
+| `chroma/` | ChromaDB vector index |
+| `audio/` | UUID-named audio files for voice notes |
+
+## Development notes
+
+- `npm run lint` in `frontend/` should return zero errors.
+- The dev server proxies `/api/*` → `http://localhost:8000` via Vite config.
+- Audio playback uses `/api/notes/{id}/audio?key=<api_key>` — query-param auth so the browser's native `<audio>` element can authenticate without custom headers.
+- Calendar events sync as notes tagged `["calendar"]`, excluded from the main feed and consolidation clustering.
+- The recorder auto-detects the best supported MIME type (`audio/webm;codecs=opus` → `audio/mp4` → fallback), so playback works across Chrome, Firefox, and Safari.
+
+## Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| Audio notes won't play | Ensure the backend `data/audio/` directory is writable. On Safari/iOS, audio is recorded as `audio/mp4`; the app handles this automatically. In a production PWA install, the service worker uses `NetworkOnly` for all `/api/` requests so audio range-request streaming is not interfered with. |
+| Transcription is slow | Switch `WHISPER_MODEL=tiny` in `.env` and restart the backend. |
+| Google Calendar not syncing | Check that `GOOGLE_REDIRECT_URI` in `.env` exactly matches the URI in your Google Cloud OAuth app settings. |
+| Push notifications not arriving | Regenerate VAPID keys, update `.env`, and re-subscribe in the app (Settings → Push Notifications). |
+| `401 Unauthorized` on all requests | The API key entered in the app must match `API_KEY` in the backend `.env`. Clear site data and re-enter the key. |
+| Stale PWA serving old files | Hard-reload (`Ctrl+Shift+R` / `Cmd+Shift+R`) or clear the browser cache. The service worker updates automatically on next visit. |
