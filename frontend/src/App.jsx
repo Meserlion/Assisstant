@@ -31,6 +31,7 @@ export default function App() {
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [showArchived, setShowArchived] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
 
   const fetchNotes = useCallback(async (archived = false) => {
     setLoading(true)
@@ -232,7 +233,17 @@ export default function App() {
           <button className={tab === 'ask' ? 'active' : ''} onClick={() => setTab('ask')}>Ask</button>
           <button className={tab === 'calendar' ? 'active' : ''} onClick={() => setTab('calendar')}>Calendar</button>
         </nav>
-        <button className="report-btn" onClick={() => setReportOpen(true)} title="Report issue or suggest feature">?</button>
+        <div className="header-actions">
+          {tab === 'notes' && (
+            <button
+              className={`search-toggle-btn${searchOpen ? ' active' : ''}`}
+              onClick={() => { if (searchOpen) setSearchQuery(''); setSearchOpen((v) => !v) }}
+              title={searchOpen ? 'Hide search' : 'Search notes'}
+              aria-label="Toggle search"
+            >🔍</button>
+          )}
+          <button className="report-btn" onClick={() => setReportOpen(true)} title="Report issue or suggest feature">?</button>
+        </div>
       </header>
 
       <main>
@@ -240,18 +251,21 @@ export default function App() {
           <>
             {loading && <p className="status">Loading…</p>}
 
-            <div className="notes-search-row">
-              <input
-                type="search"
-                className="notes-search-input"
-                placeholder="Search notes…"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              {searchQuery && (
-                <button className="notes-search-clear" onClick={() => setSearchQuery('')} title="Clear search">✕</button>
-              )}
-            </div>
+            {searchOpen && (
+              <div className="notes-search-row">
+                <input
+                  type="search"
+                  className="notes-search-input"
+                  placeholder="Search notes…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  autoFocus
+                />
+                {searchQuery && (
+                  <button className="notes-search-clear" onClick={() => setSearchQuery('')} title="Clear search">✕</button>
+                )}
+              </div>
+            )}
 
             <div className="notes-toolbar">
               {activeTag ? (
