@@ -131,7 +131,7 @@ reverting blindly.
 
 ---
 
-### [ ] TD3. Update model IDs
+### [x] TD3. Update model IDs
 
 **File:** `backend/services/claude_service.py`
 

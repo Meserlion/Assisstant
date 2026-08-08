@@ -35,7 +35,7 @@ def tag_note(text: str, client_timezone: str = None, client_local_time: str = No
     
     try:
         response = client.messages.create(
-            model="claude-haiku-4-5-20251001",
+            model="claude-haiku-4-5",
             max_tokens=300,
             messages=[{
                 "role": "user",
@@ -82,7 +82,7 @@ def rewrite_query(query: str, history: list[dict]) -> str:
     
     try:
         response = client.messages.create(
-            model="claude-haiku-4-5-20251001",
+            model="claude-haiku-4-5",
             max_tokens=100,
             messages=[{
                 "role": "user",
@@ -131,7 +131,7 @@ def answer_query(query: str, context_notes: list[dict], history: list[dict] = No
     """Answer a search query using retrieved notes as context."""
     messages = _build_query_messages(query, context_notes, history or [], schedule_context)
     response = client.messages.create(
-        model="claude-sonnet-4-6",
+        model="claude-sonnet-5",
         max_tokens=1024,
         system=_CACHED_SYSTEM,
         messages=messages,
@@ -143,7 +143,7 @@ def stream_answer_query(query: str, context_notes: list[dict], history: list[dic
     """Yield text chunks for streaming the answer."""
     messages = _build_query_messages(query, context_notes, history or [], schedule_context)
     with client.messages.stream(
-        model="claude-sonnet-4-6",
+        model="claude-sonnet-5",
         max_tokens=1024,
         system=_CACHED_SYSTEM,
         messages=messages,
@@ -155,7 +155,7 @@ def stream_answer_query(query: str, context_notes: list[dict], history: list[dic
 def rewrite_note(text: str, instruction: str) -> str:
     """Rewrite a note according to a user instruction (e.g. 'turn into a bullet list')."""
     response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model="claude-haiku-4-5",
         max_tokens=1024,
         messages=[{
             "role": "user",
@@ -191,7 +191,7 @@ def synthesize_merged_note(notes: list[dict]) -> str:
         "Consolidated Note:"
     )
     response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model="claude-haiku-4-5",
         max_tokens=1536,
         messages=[{
             "role": "user",
@@ -232,7 +232,7 @@ def cluster_notes(notes: list[dict]) -> dict:
     # Cache the full prompt (instructions + notes JSON). On repeat Merge tab visits
     # where notes haven't changed, the entire call is served from cache.
     response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model="claude-haiku-4-5",
         max_tokens=1024,
         messages=[{
             "role": "user",
@@ -257,7 +257,7 @@ def describe_image(image_bytes: bytes, mime_type: str) -> str:
     import base64
     b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
     response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model="claude-haiku-4-5",
         max_tokens=1024,
         messages=[{
             "role": "user",
@@ -306,7 +306,7 @@ def research_note(text: str) -> str:
         "Research:"
     )
     response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model="claude-haiku-4-5",
         max_tokens=300,
         messages=[{"role": "user", "content": prompt}]
     )
