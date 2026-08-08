@@ -5,8 +5,28 @@
 Tasks in **Tech Debt** are written to be implemented directly. Each one gives you the exact
 file, the exact text to find, and the exact text to replace it with. Do not redesign them.
 
+### Picking a task
+
+Pick the **lowest-numbered task whose checkbox is still unticked** and whose `BLOCKED BY` line
+(if it has one) names only tasks that are already ticked. If the next task is blocked, skip it and
+take the next eligible one.
+
+> **Never start a task whose `BLOCKED BY` prerequisite is unticked.** TD2 and TD3 in particular will
+> take the live Ask tab down if they are deployed out of order. The checkbox is the only source of
+> truth for whether a prerequisite is done — do not infer it from the code.
+
+**When you finish a task, tick its checkbox in this file in the same commit as the code change.**
+A task is not done until its box is ticked on `main`.
+
 Rules:
-- Do the tasks in number order. `TD1` must deploy before `TD2` and `TD3` — the dependency is explained in each.
+- **Start from an up-to-date checkout.** Run `git fetch origin main && git status` first. If the
+  branch is behind, pull before editing. Committing from a stale checkout silently reverts other
+  people's work — this has already happened on this repo.
+- **Stage only the files you actually edited** (`git add <path>`), never `git add -A`. A blanket add
+  from a stale or dirty tree is how truncated files and duplicate commits have reached `main` before.
+- **Re-read each file immediately before editing it, and write it back whole.** Three files
+  (`backend/database.py`, `README.md`, and a CSS rule fixed in `697f4a7`) have been pushed to `main`
+  truncated mid-line. After writing any file, confirm it still ends with a complete line.
 - One task per commit. Commit message format: `fix: <task title> (TD<n>)`.
 - After any change under `frontend/`, run `npm run lint` in `frontend/` and confirm zero errors.
 - After pushing to `main`, confirm the "Deploy to Hetzner" Actions run shows **Success** before starting the next task.
@@ -18,7 +38,7 @@ Rules:
 
 ## Tech Debt
 
-### TD1. Install backend dependencies during deploy
+### [ ] TD1. Install backend dependencies during deploy
 
 **File:** `.github/workflows/deploy.yml` (~line 33)
 
@@ -49,13 +69,14 @@ crashes on import. This blocks TD2 and TD3.
 
 ---
 
-### TD2. Upgrade the Anthropic SDK
+### [ ] TD2. Upgrade the Anthropic SDK
 
 **File:** `backend/requirements.txt` (line 5)
 
 **Why:** `anthropic==0.40.0` is very old. TD3 cannot be verified safely until the SDK is current.
 
-**Requires:** TD1 must be deployed and green first, otherwise the new version is never installed.
+**BLOCKED BY: TD1.** Do not start until TD1's checkbox is ticked — without the pip step the new
+SDK version is never installed on the server, and TD3 will then fail at runtime.
 
 **Find:** `anthropic==0.40.0`
 
@@ -66,7 +87,7 @@ crashes on import. This blocks TD2 and TD3.
 
 ---
 
-### TD3. Stop using the removed `beta.prompt_caching` namespace
+### [ ] TD3. Stop using the removed `beta.prompt_caching` namespace
 
 **File:** `backend/services/claude_service.py` (lines 133 and 145)
 
@@ -74,7 +95,8 @@ crashes on import. This blocks TD2 and TD3.
 The current API is plain `client.messages`. The code only works today because the SDK is pinned to an
 old version; after TD2 the Ask tab breaks without this change.
 
-**Requires:** TD2 deployed first.
+**BLOCKED BY: TD1, TD2.** Do not start until both checkboxes are ticked. Deploying this against
+the old pinned SDK is untested and risks taking the Ask tab down.
 
 **Change 1 — find:**
 ```python
@@ -100,7 +122,7 @@ Change nothing else. The `system=_CACHED_SYSTEM` argument and every `cache_contr
 
 ---
 
-### TD4. Update model IDs
+### [ ] TD4. Update model IDs
 
 **File:** `backend/services/claude_service.py`
 
@@ -118,7 +140,7 @@ Do not change any other part of these calls.
 
 ---
 
-### TD5. Enable SQLite WAL mode and a busy timeout
+### [ ] TD5. Enable SQLite WAL mode and a busy timeout
 
 **File:** `backend/database.py` (lines 6-10)
 
@@ -159,7 +181,7 @@ def get_db():
 
 ---
 
-### TD6. Stop blocking the event loop during transcription
+### [ ] TD6. Stop blocking the event loop during transcription
 
 **File:** `backend/routes/notes.py` (lines 460 and 575)
 
@@ -207,7 +229,7 @@ already does this correctly on line 163 using `asyncio.to_thread`. `asyncio` is 
 
 ---
 
-### TD7. Don't drop notes from search when re-indexing fails
+### [ ] TD7. Don't drop notes from search when re-indexing fails
 
 **File:** `backend/routes/notes.py` (lines 390 and 427)
 
@@ -236,7 +258,7 @@ Keep `<TEXT_VAR>` exactly as it already is in each spot. Do not swap them.
 
 ---
 
-### TD8. Refresh the note list with the correct archived filter
+### [ ] TD8. Refresh the note list with the correct archived filter
 
 **File:** `frontend/src/App.jsx` (lines 60 and 75)
 
@@ -259,7 +281,7 @@ the toggle changing.
 
 ---
 
-### TD9. Replace the deprecated FastAPI startup hooks
+### [ ] TD9. Replace the deprecated FastAPI startup hooks
 
 **File:** `backend/main.py` (lines 21 and 27)
 
@@ -304,7 +326,7 @@ from contextlib import asynccontextmanager
 
 ---
 
-### TD10. Remove the dead "research note" feature
+### [ ] TD10. Remove the dead "research note" feature
 
 **Why:** The UI button was removed in commit `d161fe8`, but the endpoint and client function are
 still shipped. Dead code that still costs an Anthropic API call if anyone hits the route.
@@ -323,7 +345,7 @@ other file calls them. If something does, stop and report it.
 
 ---
 
-### TD11. De-duplicate the two RAG query handlers
+### [ ] TD11. De-duplicate the two RAG query handlers
 
 **File:** `backend/routes/notes.py` (`query_notes` ~line 467 and `query_notes_stream` ~line 517)
 
@@ -347,7 +369,7 @@ Then have both routes call it. `query_notes` uses the result for `claude_service
 
 ---
 
-### TD12. Add a minimal backend test suite and run it in CI
+### [ ] TD12. Add a minimal backend test suite and run it in CI
 
 **Why:** There are currently zero tests, and `main` receives automated commits. Two of those commits
 shipped truncated files (`backend/database.py`, `README.md`) that no check caught.
@@ -387,7 +409,7 @@ Point the tests at a temporary SQLite file via the `SQLITE_DB_PATH` env var so t
 
 ---
 
-### TD13. Ignore local Claude settings
+### [ ] TD13. Ignore local Claude settings
 
 **File:** `.gitignore`
 
@@ -405,28 +427,28 @@ Point the tests at a temporary SQLite file via the `SQLITE_DB_PATH` env var so t
 
 ## Feature Backlog
 
-### F1. Notebooks / collections
+### [ ] F1. Notebooks / collections
 Group notes into separate spaces (Work, Personal, Ideas). Backend: add a `notebook` column; frontend: notebook selector in the header, filter notes by active notebook.
 
-### F2. Daily digest push notification
+### [ ] F2. Daily digest push notification
 Morning push at a configurable time summarising today's schedule + a recap of recent notes. Backend: add a scheduler job that calls Claude-Haiku to produce a digest and sends it via the existing push service.
 
-### F3. Save Ask conversation as a note
+### [ ] F3. Save Ask conversation as a note
 One button to persist a useful chat thread to the notes list. Frontend: "Save chat" button in QueryPanel that POSTs the conversation as a single text note.
 
-### F4. Add calendar event from Ask tab
+### [ ] F4. Add calendar event from Ask tab
 "Schedule X on Thursday" creates a Google Calendar event via voice or text in the Ask tab. Backend: extend the RAG answer path to detect scheduling intent and call the existing `google_calendar.create_event`.
 
-### F5. Weekly recap note
+### [ ] F5. Weekly recap note
 Auto-generated end-of-week summary note from the past 7 days of notes. Backend: scheduler job every Sunday that calls Claude-Haiku and inserts the result as a note tagged `["recap"]`.
 
-### F6. Share note
+### [ ] F6. Share note
 Copy a note as plain text or open the native share sheet on mobile. Frontend only: `navigator.share()` with fallback to clipboard copy, triggered by a share icon on NoteCard.
 
-### F7. Offline indicator
+### [ ] F7. Offline indicator
 PWA already caches assets but there's no UI feedback when disconnected. Frontend: listen to `window.online/offline` events and show a small banner when offline.
 
-### F8. Split `App.css` and `routes/notes.py`
+### [ ] F8. Split `App.css` and `routes/notes.py`
 `App.css` is ~2300 lines and `backend/routes/notes.py` is ~750. Split the CSS by component and move the clustering/merge endpoints out of `notes.py` into `routes/consolidate.py`. Cosmetic only — no behaviour change.
 
 ---
