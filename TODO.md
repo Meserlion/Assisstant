@@ -149,7 +149,7 @@ Do not change any other part of these calls.
 
 ---
 
-### [ ] TD4. Enable SQLite WAL mode and a busy timeout
+### [x] TD4. Enable SQLite WAL mode and a busy timeout
 
 **File:** `backend/database.py` (lines 6-10)
 

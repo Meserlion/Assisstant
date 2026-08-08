@@ -3,10 +3,20 @@ import os
 from config import settings
 
 
+_db_dir_ready = False
+
+
 def get_db():
-    os.makedirs(os.path.dirname(settings.sqlite_db_path), exist_ok=True)
-    conn = sqlite3.connect(settings.sqlite_db_path)
+    global _db_dir_ready
+    if not _db_dir_ready:
+        os.makedirs(os.path.dirname(settings.sqlite_db_path), exist_ok=True)
+        _db_dir_ready = True
+    conn = sqlite3.connect(settings.sqlite_db_path, timeout=5.0)
     conn.row_factory = sqlite3.Row
+    # WAL lets readers and writers run concurrently; busy_timeout makes a blocked
+    # writer wait instead of raising "database is locked" immediately.
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
     return conn
 
 
