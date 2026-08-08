@@ -74,7 +74,7 @@ crashes on import. This blocks TD2.
 
 ---
 
-### [ ] TD2. Upgrade the Anthropic SDK and drop `beta.prompt_caching`
+### [x] TD2. Upgrade the Anthropic SDK and drop `beta.prompt_caching`
 
 **Files:** `backend/requirements.txt` (line 5) and `backend/services/claude_service.py` (lines 133, 145)
 
