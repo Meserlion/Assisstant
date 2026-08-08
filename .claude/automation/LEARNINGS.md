@@ -19,3 +19,4 @@ anything specific to one issue — that belongs in the issue comment.
   `/opt/assistant/backend/venv/bin/uvicorn` (see `deploy.sh`). Any `pip install` on the server must
   use `/opt/assistant/backend/venv/bin/pip`, not bare `pip`, or the packages land in system Python
   and the service never sees them.
+- Sandbox can't complete `npx playwright install chromium` (184 MB, no resume) within the 40s per-command cap, so the smoke suite can't run locally there. Mitigation: run `npm run lint` + `npm run build` locally (both must pass) and rely on the CI build-check gate, which runs the smoke test on push and blocks the deploy on failure.
