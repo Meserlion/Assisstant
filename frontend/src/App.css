@@ -379,6 +379,46 @@ main {
   border-left: 2px solid rgba(255, 255, 255, 0.05);
 }
 
+/* Collapsible near-identical note body (issue #42) */
+.note-text-collapsible {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.note-text-collapsible .note-text-collapsible-body {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.note-text-collapsible.collapsed .note-text-collapsible-body {
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 0.5;
+  -webkit-mask-image: linear-gradient(to right, #000 65%, transparent 100%);
+  mask-image: linear-gradient(to right, #000 65%, transparent 100%);
+}
+
+.note-text-collapsible.expanded .note-text-collapsible-body {
+  white-space: pre-wrap;
+}
+
+.note-text-chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  padding-top: 12px;
+  transition: transform 0.2s ease;
+  user-select: none;
+}
+
+.note-text-collapsible.expanded .note-text-chevron {
+  transform: rotate(180deg);
+}
+
 .note-tags {
   display: flex;
   flex-wrap: wrap;

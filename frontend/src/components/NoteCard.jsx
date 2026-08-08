@@ -30,6 +30,48 @@ function serializeChecklist(items) {
   }).join('\n')
 }
 
+/**
+ * Normalize a string for near-identity comparison:
+ * lowercase, strip punctuation (Unicode-aware), collapse whitespace.
+ */
+function normalizeForCompare(s) {
+  return (s || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** Levenshtein edit distance between two strings. */
+function levenshtein(a, b) {
+  const m = a.length
+  const n = b.length
+  if (m === 0) return n
+  if (n === 0) return m
+  const dp = Array.from({ length: m + 1 }, (_, i) => i)
+  for (let j = 1; j <= n; j++) {
+    let prev = dp[0]
+    dp[0] = j
+    for (let i = 1; i <= m; i++) {
+      const tmp = dp[i]
+      dp[i] = Math.min(dp[i] + 1, dp[i - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1))
+      prev = tmp
+    }
+  }
+  return dp[m]
+}
+
+/** Similarity in [0, 1] of two strings after normalization. */
+function bodySimilarity(title, body) {
+  const s1 = normalizeForCompare(title)
+  const s2 = normalizeForCompare(body)
+  if (!s1 && !s2) return 1
+  if (!s1 || !s2) return 0
+  if (s1 === s2) return 1
+  const maxLen = Math.max(s1.length, s2.length)
+  return 1 - levenshtein(s1, s2) / maxLen
+}
+
 export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTag, tagCounts = {}, selected, onSelect, onPin, onArchive, isArchived, onUpdate }) {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
@@ -38,6 +80,7 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
   const touchStartX = useRef(null)
   const deletingRef = useRef(false)
   const archivingRef = useRef(false)
+  const [expanded, setExpanded] = useState(false)
 
   const date = new Date(note.created_at).toLocaleString()
   // eslint-disable-next-line react-hooks/purity
@@ -45,6 +88,8 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
   const { isList, items: checklistItems } = parseChecklist(note.raw_text)
   const checklistDone = checklistItems.filter(i => i.isBullet && i.checked).length
   const checklistTotal = checklistItems.filter(i => i.isBullet).length
+  // Collapse the body when it is near-identical to the summary (title). Issue #42.
+  const bodyNearIdentical = !isList && bodySimilarity(note.summary, note.raw_text) >= 0.9
 
   async function handleCreateReminder() {
     setLoading(true)
@@ -180,6 +225,24 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
               ) : null
             )}
           </ul>
+        ) : bodyNearIdentical ? (
+          <div
+            className={'note-text-collapsible ' + (expanded ? 'expanded' : 'collapsed')}
+            role="button"
+            tabIndex={0}
+            aria-expanded={expanded}
+            title={expanded ? 'Collapse body' : 'Expand body'}
+            onClick={() => setExpanded((v) => !v)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                setExpanded((v) => !v)
+              }
+            }}
+          >
+            <p className="note-text note-text-collapsible-body">{note.raw_text}</p>
+            <span className="note-text-chevron" aria-hidden="true">&#9662;</span>
+          </div>
         ) : (
           <p className="note-text">{note.raw_text}</p>
         )}
