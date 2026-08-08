@@ -4,6 +4,13 @@ on:
   push:
     branches: [main]
 
+# The 'Open issue on failure' step needs issues:write; checkout needs contents:read.
+# Without this block the default token is read-only and the alert step 500s with
+# "Resource not accessible by integration".
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   build-check:
     runs-on: ubuntu-latest
@@ -50,7 +57,8 @@ jobs:
           script: |
             set -e
             cd /opt/assistant
-            git pull
+            git fetch origin main
+            git reset --hard origin/main
             /opt/assistant/backend/venv/bin/pip install -r backend/requirements.txt
             cd frontend
             npm install --prefer-offline
