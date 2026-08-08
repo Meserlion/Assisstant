@@ -78,6 +78,7 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
   const [error, setError] = useState(null)
   const [swipeOffset, setSwipeOffset] = useState(0)
   const touchStartX = useRef(null)
+  const movedRef = useRef(false)
   const deletingRef = useRef(false)
   const archivingRef = useRef(false)
   const [expanded, setExpanded] = useState(false)
@@ -90,6 +91,14 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
   const checklistTotal = checklistItems.filter(i => i.isBullet).length
   // Collapse the body when it is near-identical to the summary (title). Issue #42.
   const bodyNearIdentical = !isList && bodySimilarity(note.summary, note.raw_text) >= 0.9
+  // Preview truncation (issue: show only a snippet, tap card to expand).
+  const bodyTruncatable =
+    bodyNearIdentical ||
+    (isList
+      ? checklistItems.filter((i) => i.text).length > 3
+      : (note.raw_text || '').length > 90 || (note.raw_text || '').trimEnd().includes('\n'))
+  const showBody = expanded || !bodyNearIdentical
+  const clampBody = !expanded && bodyTruncatable
 
   async function handleCreateReminder() {
     setLoading(true)
@@ -120,13 +129,22 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
 
   function handleTouchStart(e) {
     touchStartX.current = e.touches[0].clientX
+    movedRef.current = false
   }
 
   function handleTouchMove(e) {
     if (touchStartX.current === null) return
     const delta = e.touches[0].clientX - touchStartX.current
+    if (Math.abs(delta) > 8) movedRef.current = true
     if (delta < 0) setSwipeOffset(Math.max(delta, -100))
     else if (delta > 0 && onArchive) setSwipeOffset(Math.min(delta, 100))
+  }
+
+  function handleCardClick(e) {
+    if (movedRef.current) return
+    // Don't toggle when interacting with controls, checkboxes, tags or audio.
+    if (e.target.closest('button, input, label, a, audio, .tag')) return
+    setExpanded((v) => !v)
   }
 
   function handleTouchEnd() {
@@ -165,6 +183,7 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        onClick={handleCardClick}
       >
         <div className="note-header">
           {onSelect && (
@@ -206,45 +225,34 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
         </div>
         <p className="note-summary">{note.summary}</p>
 
-        {isList ? (
-          <ul className="note-checklist">
-            {checklistItems.map((item, i) =>
-              item.isBullet ? (
-                <li key={i} className={'checklist-item' + (item.checked ? ' checklist-item-done' : '')}>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={item.checked}
-                      onChange={() => handleChecklistToggle(i)}
-                    />
-                    <span>{item.text}</span>
-                  </label>
-                </li>
-              ) : item.text ? (
-                <li key={i} className="checklist-header">{item.text}</li>
-              ) : null
+        {showBody && (
+          <div className={'note-body' + (clampBody ? ' collapsed' : '')}>
+            {isList ? (
+              <ul className="note-checklist">
+                {checklistItems.map((item, i) =>
+                  item.isBullet ? (
+                    <li key={i} className={'checklist-item' + (item.checked ? ' checklist-item-done' : '')}>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={item.checked}
+                          onChange={() => handleChecklistToggle(i)}
+                        />
+                        <span>{item.text}</span>
+                      </label>
+                    </li>
+                  ) : item.text ? (
+                    <li key={i} className="checklist-header">{item.text}</li>
+                  ) : null
+                )}
+              </ul>
+            ) : (
+              <p className="note-text">{note.raw_text}</p>
             )}
-          </ul>
-        ) : bodyNearIdentical ? (
-          <div
-            className={'note-text-collapsible ' + (expanded ? 'expanded' : 'collapsed')}
-            role="button"
-            tabIndex={0}
-            aria-expanded={expanded}
-            title={expanded ? 'Collapse body' : 'Expand body'}
-            onClick={() => setExpanded((v) => !v)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                setExpanded((v) => !v)
-              }
-            }}
-          >
-            <p className="note-text note-text-collapsible-body">{note.raw_text}</p>
-            <span className="note-text-chevron" aria-hidden="true">&#9662;</span>
           </div>
-        ) : (
-          <p className="note-text">{note.raw_text}</p>
+        )}
+        {bodyTruncatable && (
+          <span className={'note-expand-chevron' + (expanded ? ' expanded' : '')} aria-hidden="true">&#9662;</span>
         )}
 
         <div className="note-tags">

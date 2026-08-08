@@ -283,21 +283,23 @@ export default function App() {
               </div>
             )}
 
-            <div className="notes-toolbar">
-              {activeTag ? (
-                <div className="tag-filter-banner">
-                  <span>Filtered by: <strong>{activeTag}</strong></span>
-                  <button className="clear-filter-btn" onClick={() => setActiveTag(null)}>✕ Clear</button>
+            {(activeTag || selectedIds.size > 0) && (
+              <div className="notes-toolbar">
+                {activeTag ? (
+                  <div className="tag-filter-banner">
+                    <span>Filtered by: <strong>{activeTag}</strong></span>
+                    <button className="clear-filter-btn" onClick={() => setActiveTag(null)}>✕ Clear</button>
+                  </div>
+                ) : <div />}
+                <div className="toolbar-right">
+                  {selectedIds.size > 0 && (
+                    <button className="bulk-delete-btn" onClick={handleBulkDelete}>
+                      🗑 Delete {selectedIds.size}
+                    </button>
+                  )}
                 </div>
-              ) : <div />}
-              <div className="toolbar-right">
-                {selectedIds.size > 0 && (
-                  <button className="bulk-delete-btn" onClick={handleBulkDelete}>
-                    🗑 Delete {selectedIds.size}
-                  </button>
-                )}
               </div>
-            </div>
+            )}
 
             <div className="notes-list">
               {filteredNotes.map((note) => (
