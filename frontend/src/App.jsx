@@ -226,7 +226,6 @@ export default function App() {
   return (
     <div className="app">
       <header>
-        <h1>Assistant</h1>
         <nav>
           <button className={tab === 'notes' ? 'active' : ''} onClick={() => setTab('notes')}>Notes</button>
           <button className={tab === 'consolidate' ? 'active' : ''} onClick={() => setTab('consolidate')}>Merge</button>
