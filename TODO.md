@@ -38,7 +38,7 @@ Rules:
 
 ## Tech Debt
 
-### [ ] TD1. Install backend dependencies during deploy
+### [x] TD1. Install backend dependencies during deploy
 
 **File:** `.github/workflows/deploy.yml` (~line 33)
 

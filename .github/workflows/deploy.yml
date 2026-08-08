@@ -32,6 +32,7 @@ jobs:
             set -e
             cd /opt/assistant
             git pull
+            /opt/assistant/backend/venv/bin/pip install -r backend/requirements.txt
             cd frontend
             npm install --prefer-offline
             npm run build
