@@ -46,10 +46,31 @@ curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
 **Selection rules**
 
 - Only act on issues opened by **Meserlion**. Ignore every other author.
-- **Reject** an issue if it is too vague to implement, would add major complexity or cost, requires a
-  new paid API service or a major new dependency, or is a question rather than a clear bug/feature request.
+- **Reject** an issue if it would add major complexity or cost, requires a new paid API service or a
+  major new dependency, or is a question rather than a request.
+- **Ask** (see below) if the issue is a genuine request but you cannot tell exactly what to change.
 - Implement at most **two** per run. If more than two are actionable, **prioritise bugs over features**.
 - Note that GitHub's issues endpoint also returns pull requests. Skip any item that has a `pull_request` key.
+
+### Before implementing, check the request is safe to take literally
+
+Read the code you would be changing **before** deciding the issue is actionable. Ask yourself: does
+the thing I am about to change also do something the issue never mentions?
+
+**If carrying out the request literally would remove or break functionality the issue says nothing
+about, do not implement it and do not guess the intent. Ask instead.**
+
+Worked example: an issue saying "remove the header, it just takes space" sounds trivial, but
+`<header>` in `frontend/src/App.jsx` also contains the tab navigation and the report button.
+Deleting it literally would leave the app with no way to change tabs and no way to report the
+breakage. The right response is to ask which part should go, not to pick one.
+
+This matters because the automated checks will not catch it. The deploy health check only tests
+`/api/health`, which is the backend — a completely broken frontend still returns 200 and the run
+still reports success. You are the only check on this. Be deliberate.
+
+Bias: when implementing would be destructive and irreversible for the user, asking costs one run.
+Guessing wrong can ship a broken app that nothing detects.
 
 **If there are no open issues** — fall back to the backlog: open `TODO.md` and pick the
 lowest-numbered unticked `TD` task whose `BLOCKED BY` prerequisites are all ticked. Follow that file's
@@ -132,13 +153,40 @@ in the issue comment. Do not close the issue.
 
 ## 5. Close the loop
 
+There are **three** outcomes. Only two of them close the issue.
+
 **If implemented and verified:**
 1. Comment on the issue via the API — what changed, which files were touched, and the deploy result.
 2. Close the issue.
 
-**If rejected:**
-1. Comment explaining clearly why (too vague, too complex, already implemented, out of scope).
+**If rejected** (too complex, too costly, needs a paid service, already implemented, or a question):
+1. Comment explaining clearly why.
 2. Close the issue.
+
+**If it needs clarification — do NOT close it:**
+1. Comment with a *specific* question, not "please clarify". State what you found in the code, what
+   the ambiguity is, and offer the concrete options. For example:
+
+   > The `<header>` also contains the tab navigation (Notes / Merge / Ask / Calendar) and the report
+   > button, so removing it entirely would leave no way to switch tabs or report problems. Which did
+   > you mean?
+   > 1. Remove only the "Assistant" title, keep the tabs and report button
+   > 2. Remove the title and move the tabs to the bottom bar
+   > 3. Something else
+
+2. **Leave the issue open.** Do not implement anything. Do not close it.
+3. Move on to the next issue.
+
+**Never ask the same question twice.** Before commenting, fetch the issue's existing comments:
+
+```bash
+curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+  "https://api.github.com/repos/Meserlion/Assisstant/issues/<number>/comments"
+```
+
+If the most recent comment is your own clarifying question and the issue author has not replied
+since, **skip this issue entirely this run** — say so in your report and move on. If the author has
+replied, use that answer and implement.
 
 ```bash
 # Comment
@@ -187,3 +235,7 @@ Stop and report rather than improvising if any of these occur:
 - `npm run lint` fails and the fix is not obvious.
 - The deploy health check does not return `200`.
 - A rule in this file is unclear or blocks the task (open an `Instruction gap:` issue).
+- Carrying out an issue literally would break something the issue does not mention — ask on the
+  issue and leave it open (see step 5), rather than picking an interpretation.
+- You are unsure whether a change is destructive. Asking costs one run; guessing wrong can ship a
+  broken app that no automated check detects.
