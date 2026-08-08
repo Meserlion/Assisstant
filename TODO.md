@@ -190,7 +190,7 @@ def get_db():
 
 ---
 
-### [ ] TD5. Stop blocking the event loop during transcription
+### [x] TD5. Stop blocking the event loop during transcription
 
 **File:** `backend/routes/notes.py` (lines 460 and 575)
 

@@ -457,7 +457,7 @@ async def transcribe_audio(audio: UploadFile = File(...)):
         tmp_path = tmp.name
 
     try:
-        text = whisper_service.transcribe(tmp_path)
+        text = await asyncio.to_thread(whisper_service.transcribe, tmp_path)
     finally:
         os.unlink(tmp_path)
 
@@ -572,7 +572,7 @@ async def query_notes_voice(audio: UploadFile = File(...), history: str = Form("
         tmp_path = tmp.name
 
     try:
-        text = whisper_service.transcribe(tmp_path)
+        text = await asyncio.to_thread(whisper_service.transcribe, tmp_path)
     finally:
         os.unlink(tmp_path)
 
