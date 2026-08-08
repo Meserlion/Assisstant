@@ -238,7 +238,7 @@ already does this correctly on line 163 using `asyncio.to_thread`. `asyncio` is 
 
 ---
 
-### [ ] TD6. Don't drop notes from search when re-indexing fails
+### [x] TD6. Don't drop notes from search when re-indexing fails
 
 **File:** `backend/routes/notes.py` (lines 390 and 427)
 

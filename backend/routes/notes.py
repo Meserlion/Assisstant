@@ -387,8 +387,11 @@ def update_note(note_id: str, req: NoteUpdateRequest):
     db.close()
 
     # Update Vector Store (Chroma)
-    chroma_service.delete_note(note_id)
-    chroma_service.add_note(note_id, req.text, {"created_at": row["created_at"], "tags": json.dumps(tags), "summary": summary})
+    try:
+        chroma_service.delete_note(note_id)
+        chroma_service.add_note(note_id, req.text, {"created_at": row["created_at"], "tags": json.dumps(tags), "summary": summary})
+    except Exception as e:
+        print(f"CHROMA_SYNC_FAILURE note_id={note_id} error={e} — note saved but search index is stale")
 
     return _row_to_note(updated_row)
 
@@ -424,8 +427,11 @@ def research_note(note_id: str):
     db.commit()
     db.close()
 
-    chroma_service.delete_note(note_id)
-    chroma_service.add_note(note_id, new_text, {"created_at": row["created_at"], "tags": json.dumps(tags), "summary": summary})
+    try:
+        chroma_service.delete_note(note_id)
+        chroma_service.add_note(note_id, new_text, {"created_at": row["created_at"], "tags": json.dumps(tags), "summary": summary})
+    except Exception as e:
+        print(f"CHROMA_SYNC_FAILURE note_id={note_id} error={e} — note saved but search index is stale")
 
     return NoteResponse(
         id=note_id, created_at=row["created_at"], raw_text=new_text,
