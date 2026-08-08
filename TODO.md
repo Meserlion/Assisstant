@@ -11,9 +11,10 @@ Pick the **lowest-numbered task whose checkbox is still unticked** and whose `BL
 (if it has one) names only tasks that are already ticked. If the next task is blocked, skip it and
 take the next eligible one.
 
-> **Never start a task whose `BLOCKED BY` prerequisite is unticked.** TD2 and TD3 in particular will
-> take the live Ask tab down if they are deployed out of order. The checkbox is the only source of
-> truth for whether a prerequisite is done — do not infer it from the code.
+> **Never start a task whose `BLOCKED BY` prerequisite is unticked**, and never split a task that
+> says its changes must ship together. TD2 will take the live Ask tab down if it is deployed without
+> TD1, or if its two file changes are split across separate deploys. The checkbox is the only source
+> of truth for whether a prerequisite is done — do not infer it from the code.
 
 **When you finish a task, tick its checkbox in this file in the same commit as the code change.**
 A task is not done until its box is ticked on `main`.
@@ -44,7 +45,7 @@ Rules:
 
 **Why:** The deploy script builds the frontend but never installs Python packages. Any new entry in
 `backend/requirements.txt` is silently ignored, so the service restarts with stale dependencies and
-crashes on import. This blocks TD2 and TD3.
+crashes on import. This blocks TD2.
 
 **Find:**
 ```yaml
@@ -69,36 +70,30 @@ crashes on import. This blocks TD2 and TD3.
 
 ---
 
-### [ ] TD2. Upgrade the Anthropic SDK
+### [ ] TD2. Upgrade the Anthropic SDK and drop `beta.prompt_caching`
 
-**File:** `backend/requirements.txt` (line 5)
+**Files:** `backend/requirements.txt` (line 5) and `backend/services/claude_service.py` (lines 133, 145)
 
-**Why:** `anthropic==0.40.0` is very old. TD3 cannot be verified safely until the SDK is current.
+**BLOCKED BY: TD1.**
 
-**BLOCKED BY: TD1.** Do not start until TD1's checkbox is ticked — without the pip step the new
-SDK version is never installed on the server, and TD3 will then fail at runtime.
+**Why:** `anthropic==0.40.0` is very old. `client.beta.prompt_caching` was removed from the SDK when
+prompt caching went GA; the current API is plain `client.messages`.
 
-**Find:** `anthropic==0.40.0`
+**These two changes MUST ship in the same commit and the same deploy.** They are not independent:
+the old SDK is the only reason the `beta.prompt_caching` calls work today, and the new SDK is the
+only thing that makes `client.messages` with `cache_control` current. Deploying either one alone
+takes the Ask tab down until the other lands.
 
-**Replace with:** `anthropic==0.116.0`
+**Change 1 — `backend/requirements.txt`, find:**
+```
+anthropic==0.40.0
+```
+**Replace with:**
+```
+anthropic==0.116.0
+```
 
-**Verify:** After deploy, open the Ask tab and send one question. If it errors, check
-`ssh root@91.98.46.215 'journalctl -u assistant -n 50'` and report the traceback rather than reverting blindly.
-
----
-
-### [ ] TD3. Stop using the removed `beta.prompt_caching` namespace
-
-**File:** `backend/services/claude_service.py` (lines 133 and 145)
-
-**Why:** `client.beta.prompt_caching` was removed from the Anthropic SDK when prompt caching went GA.
-The current API is plain `client.messages`. The code only works today because the SDK is pinned to an
-old version; after TD2 the Ask tab breaks without this change.
-
-**BLOCKED BY: TD1, TD2.** Do not start until both checkboxes are ticked. Deploying this against
-the old pinned SDK is untested and risks taking the Ask tab down.
-
-**Change 1 — find:**
+**Change 2 — `backend/services/claude_service.py`, find:**
 ```python
     response = client.beta.prompt_caching.messages.create(
 ```
@@ -107,7 +102,7 @@ the old pinned SDK is untested and risks taking the Ask tab down.
     response = client.messages.create(
 ```
 
-**Change 2 — find:**
+**Change 3 — `backend/services/claude_service.py`, find:**
 ```python
     with client.beta.prompt_caching.messages.stream(
 ```
@@ -116,13 +111,23 @@ the old pinned SDK is untested and risks taking the Ask tab down.
     with client.messages.stream(
 ```
 
-Change nothing else. The `system=_CACHED_SYSTEM` argument and every `cache_control` block stay exactly as they are — they are supported on `client.messages`.
+Change nothing else. The `system=_CACHED_SYSTEM` argument and every `cache_control` block stay
+exactly as they are — both are supported on `client.messages`.
 
-**Verify:** Ask tab returns an answer, and streaming still renders progressively.
+**Before committing**, confirm no occurrences remain:
+```bash
+grep -n "beta.prompt_caching" backend/services/claude_service.py   # must print nothing
+grep -n "anthropic==" backend/requirements.txt                     # must show 0.116.0
+```
+
+**Verify:** After deploy, open the Ask tab and send one question; confirm it answers and that
+streaming renders progressively. If it errors, check
+`ssh root@91.98.46.215 'journalctl -u assistant -n 50'` and report the traceback rather than
+reverting blindly.
 
 ---
 
-### [ ] TD4. Update model IDs
+### [ ] TD3. Update model IDs
 
 **File:** `backend/services/claude_service.py`
 
@@ -140,7 +145,7 @@ Do not change any other part of these calls.
 
 ---
 
-### [ ] TD5. Enable SQLite WAL mode and a busy timeout
+### [ ] TD4. Enable SQLite WAL mode and a busy timeout
 
 **File:** `backend/database.py` (lines 6-10)
 
@@ -181,7 +186,7 @@ def get_db():
 
 ---
 
-### [ ] TD6. Stop blocking the event loop during transcription
+### [ ] TD5. Stop blocking the event loop during transcription
 
 **File:** `backend/routes/notes.py` (lines 460 and 575)
 
@@ -229,7 +234,7 @@ already does this correctly on line 163 using `asyncio.to_thread`. `asyncio` is 
 
 ---
 
-### [ ] TD7. Don't drop notes from search when re-indexing fails
+### [ ] TD6. Don't drop notes from search when re-indexing fails
 
 **File:** `backend/routes/notes.py` (lines 390 and 427)
 
@@ -258,7 +263,7 @@ Keep `<TEXT_VAR>` exactly as it already is in each spot. Do not swap them.
 
 ---
 
-### [ ] TD8. Refresh the note list with the correct archived filter
+### [ ] TD7. Refresh the note list with the correct archived filter
 
 **File:** `frontend/src/App.jsx` (lines 60 and 75)
 
@@ -281,7 +286,7 @@ the toggle changing.
 
 ---
 
-### [ ] TD9. Replace the deprecated FastAPI startup hooks
+### [ ] TD8. Replace the deprecated FastAPI startup hooks
 
 **File:** `backend/main.py` (lines 21 and 27)
 
@@ -326,7 +331,7 @@ from contextlib import asynccontextmanager
 
 ---
 
-### [ ] TD10. Remove the dead "research note" feature
+### [ ] TD9. Remove the dead "research note" feature
 
 **Why:** The UI button was removed in commit `d161fe8`, but the endpoint and client function are
 still shipped. Dead code that still costs an Anthropic API call if anyone hits the route.
@@ -345,7 +350,7 @@ other file calls them. If something does, stop and report it.
 
 ---
 
-### [ ] TD11. De-duplicate the two RAG query handlers
+### [ ] TD10. De-duplicate the two RAG query handlers
 
 **File:** `backend/routes/notes.py` (`query_notes` ~line 467 and `query_notes_stream` ~line 517)
 
@@ -369,7 +374,7 @@ Then have both routes call it. `query_notes` uses the result for `claude_service
 
 ---
 
-### [ ] TD12. Add a minimal backend test suite and run it in CI
+### [ ] TD11. Add a minimal backend test suite and run it in CI
 
 **Why:** There are currently zero tests, and `main` receives automated commits. Two of those commits
 shipped truncated files (`backend/database.py`, `README.md`) that no check caught.
@@ -409,7 +414,7 @@ Point the tests at a temporary SQLite file via the `SQLITE_DB_PATH` env var so t
 
 ---
 
-### [ ] TD13. Ignore local Claude settings
+### [ ] TD12. Ignore local Claude settings
 
 **File:** `.gitignore`
 
