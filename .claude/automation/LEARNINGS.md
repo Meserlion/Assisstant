@@ -11,4 +11,11 @@ anything specific to one issue — that belongs in the issue comment.
 
 ---
 
-- 2026-08-08 — File created. No entries yet.
+- 2026-08-08 — The mounted checkout can carry a stale index and leftover `.git/*.lock` files (one sat
+  there for two months, freezing the repo). Cloning fresh into `/tmp` and working from that is more
+  reliable than trying to sync the mount in place, and it makes `git add -A` accidents impossible.
+  Push from the clone; the mount does not need to be touched at all.
+- 2026-08-08 — The backend runs from a virtualenv: `systemd` calls
+  `/opt/assistant/backend/venv/bin/uvicorn` (see `deploy.sh`). Any `pip install` on the server must
+  use `/opt/assistant/backend/venv/bin/pip`, not bare `pip`, or the packages land in system Python
+  and the service never sees them.
