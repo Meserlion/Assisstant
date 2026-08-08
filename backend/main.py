@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from config import settings
 from database import init_db
 from routes.notes import router as notes_router
 from routes.calendar import router as calendar_router
@@ -11,7 +12,7 @@ app = FastAPI(title="Assistant API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[o.strip() for o in settings.allowed_origins.split(",") if o.strip()],
     allow_methods=["*"],
     allow_headers=["*"],
 )

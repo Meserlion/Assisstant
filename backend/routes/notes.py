@@ -11,20 +11,14 @@ from datetime import datetime, timezone
 import aiofiles
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from fastapi.responses import StreamingResponse
-from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 
+from auth import audio_token_is_valid, make_audio_token, verify_key
 from config import settings
 from database import get_db
 from services import whisper_service, claude_service, chroma_service
 
 router = APIRouter(prefix="/notes", tags=["notes"])
-api_key_header = APIKeyHeader(name="X-API-Key")
-
-
-def verify_key(key: str = Depends(api_key_header)):
-    if key != settings.api_key:
-        raise HTTPException(status_code=401, detail="Invalid API key")
 
 
 class NoteResponse(BaseModel):
@@ -70,6 +64,11 @@ class ColorRequest(BaseModel):
 
 class CleanupRequest(BaseModel):
     note_ids: list[str] = []
+
+
+def _audio_url(note_id: str) -> str:
+    """Playable URL carrying a short-lived, note-scoped token (never the API key)."""
+    return f"/api/notes/{note_id}/audio?t={make_audio_token(note_id)}"
 
 
 def _background_index_note(note_id: str, text: str, created_at: str, tags: list, summary: str):
@@ -186,7 +185,7 @@ async def capture_note(
     threading.Thread(target=_background_remux, args=(audio_path, suffix), daemon=True).start()
 
     print(f"NOTE_TIMING transcribe={t_transcribe:.2f}s capture_total={time.perf_counter()-t_start:.2f}s note_id={note.id}")
-    return NoteResponse(**{**note.model_dump(), "audio_url": f"/api/notes/{note.id}/audio"})
+    return NoteResponse(**{**note.model_dump(), "audio_url": _audio_url(note.id)})
 
 
 def _background_remux(audio_path: str, suffix: str):
@@ -256,7 +255,7 @@ def _row_to_note(r) -> NoteResponse:
         pinned=bool(r["pinned"]),
         archived=bool(r["archived"]),
         color=(r["color"] if "color" in r.keys() else None),
-        audio_url=f"/api/notes/{r['id']}/audio" if r["audio_path"] else None,
+        audio_url=_audio_url(r["id"]) if r["audio_path"] else None,
     )
 
 
@@ -328,13 +327,14 @@ def archive_note(note_id: str, body: ArchiveRequest):
 
 
 @router.get("/{note_id}/audio")
-def get_note_audio(note_id: str, key: str = ""):
-    """Audio endpoint accepts the API key as a query param so the browser's
-    native <audio> element (which cannot send custom headers) can authenticate."""
+def get_note_audio(note_id: str, t: str = ""):
+    """Authenticated by the short-lived token minted in _audio_url, not the API key.
+    <audio src> cannot send headers, so the credential has to live in the URL —
+    this one is scoped to a single note, expires in an hour, and is useless
+    against any other endpoint."""
     from fastapi.responses import FileResponse
-    from fastapi.security import APIKeyHeader as _H
-    if key != settings.api_key:
-        raise HTTPException(status_code=401, detail="Invalid API key")
+    if not audio_token_is_valid(note_id, t):
+        raise HTTPException(status_code=401, detail="Invalid or expired audio token")
     db = get_db()
     row = db.execute("SELECT audio_path FROM notes WHERE id = ?", (note_id,)).fetchone()
     db.close()
@@ -409,7 +409,7 @@ def research_note(note_id: str):
             id=note_id, created_at=row["created_at"], raw_text=row["raw_text"],
             tags=json.loads(row["tags"]), summary=row["summary"],
             pinned=bool(row["pinned"]), archived=bool(row["archived"]),
-            audio_url=f"/api/notes/{note_id}/audio" if row["audio_path"] else None
+            audio_url=_audio_url(note_id) if row["audio_path"] else None
         )
 
     new_text = row["raw_text"].rstrip() + "\n\n**Research:**\n" + research
@@ -431,7 +431,7 @@ def research_note(note_id: str):
         id=note_id, created_at=row["created_at"], raw_text=new_text,
         tags=tags, summary=summary,
         pinned=bool(row["pinned"]), archived=bool(row["archived"]),
-        audio_url=f"/api/notes/{note_id}/audio" if row["audio_path"] else None
+        audio_url=_audio_url(note_id) if row["audio_path"] else None
     )
 
 

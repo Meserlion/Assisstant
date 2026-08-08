@@ -5,6 +5,8 @@ class Settings(BaseSettings):
     api_key: str
     anthropic_api_key: str
     whisper_model: str = "small"
+    # Comma-separated origins allowed to call the API from a browser.
+    allowed_origins: str = "https://mcgreeff-assistant.duckdns.org,http://localhost:5173"
     chroma_db_path: str = "./data/chroma"
     sqlite_db_path: str = "./data/notes.db"
     google_client_id: str = ""

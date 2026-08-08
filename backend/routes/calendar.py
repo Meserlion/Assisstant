@@ -3,25 +3,19 @@ from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
-from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 from typing import Optional
 from google_auth_oauthlib.flow import Flow
 
+from auth import verify_key
 from config import settings
 from database import get_db
 from services import google_calendar, push_service
 from services.claude_service import client as anthropic_client, _strip_json_fences
 
 router = APIRouter(prefix="/calendar", tags=["calendar"])
-api_key_header = APIKeyHeader(name="X-API-Key")
 
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
-
-
-def verify_key(key: str = Depends(api_key_header)):
-    if key != settings.api_key:
-        raise HTTPException(status_code=401, detail="Invalid API key")
 
 
 class ReminderRequest(BaseModel):

@@ -198,7 +198,7 @@ export function NoteCard({ note, onDelete, onEdit, onSplit, onTagClick, activeTa
         {note.audio_url && (
           <audio
             className="note-audio"
-            src={note.audio_url + '?key=' + encodeURIComponent(localStorage.getItem('api_key') || '')}
+            src={note.audio_url}
             controls
             preload="metadata"
             onLoadedMetadata={handleAudioMetadata}

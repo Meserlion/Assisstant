@@ -2,20 +2,14 @@ import uuid
 import json
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.security import APIKeyHeader
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
+from auth import verify_key
 from config import settings
 from database import get_db
 
 router = APIRouter(prefix="/push", tags=["push"])
-api_key_header = APIKeyHeader(name="X-API-Key")
-
-
-def verify_key(key: str = Depends(api_key_header)):
-    if key != settings.api_key:
-        raise HTTPException(status_code=401, detail="Invalid API key")
 
 
 class PushSubscription(BaseModel):
