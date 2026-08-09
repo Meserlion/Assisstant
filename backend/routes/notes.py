@@ -101,47 +101,79 @@ def _background_calendar_sync(reminder_id: str, title: str, remind_at: str):
 
 
 def _save_note_from_text(text: str, client_timezone: str = None, client_local_time: str = None) -> NoteResponse:
-    """Shared helper: analyse text, persist to SQLite, auto-create reminder if needed.
-    Chroma vectorization and Google Calendar sync run in background threads so the
-    response returns as soon as the note is analysed and saved."""
-    t0 = time.perf_counter()
-    analysis = claude_service.tag_note(text, client_timezone, client_local_time)
-    t_analyze = time.perf_counter() - t0
-    tags = analysis["tags"]
-    summary = analysis["summary"]
+    """Shared helper: persist the note to SQLite immediately, then analyse (tags/summary/
+    reminder) and vectorize entirely in a background thread. Tagging used to block the
+    response on a Claude-Haiku round-trip; moving it off the critical path makes note
+    creation near-instant. Tags/summary and any reminder land a second or two later."""
     note_id = str(uuid.uuid4())
     created_at = datetime.now(timezone.utc).isoformat()
+    # Cheap placeholder summary (first non-empty line) until background analysis fills it in.
+    stripped = text.strip()
+    placeholder_summary = next((ln.strip() for ln in stripped.splitlines() if ln.strip()), "")[:200]
 
     t1 = time.perf_counter()
     db = get_db()
     db.execute(
         "INSERT INTO notes (id, created_at, raw_text, tags, summary) VALUES (?, ?, ?, ?, ?)",
-        (note_id, created_at, text, json.dumps(tags), summary),
+        (note_id, created_at, text, json.dumps([]), placeholder_summary),
     )
     db.commit()
     db.close()
     t_sqlite = time.perf_counter() - t1
 
-    # Vectorize in the background — keeps embedding latency out of the user-facing path.
-    threading.Thread(target=_background_index_note, args=(note_id, text, created_at, tags, summary), daemon=True).start()
+    # Analyse + vectorize off the critical path so the response returns immediately.
+    threading.Thread(
+        target=_background_analyze_and_index,
+        args=(note_id, text, created_at, client_timezone, client_local_time),
+        daemon=True,
+    ).start()
 
-    if analysis["is_reminder"] and analysis["reminder_details"]:
-        rem_details = analysis["reminder_details"]
-        title = rem_details.get("title") or text[:80]
-        remind_at = rem_details.get("remind_at")
-        if remind_at:
-            reminder_id = str(uuid.uuid4())
-            db = get_db()
-            db.execute(
-                "INSERT INTO reminders (id, title, remind_at, created_at) VALUES (?, ?, ?, ?)",
-                (reminder_id, title, remind_at, created_at),
-            )
-            db.commit()
-            db.close()
-            threading.Thread(target=_background_calendar_sync, args=(reminder_id, title, remind_at), daemon=True).start()
+    print(f"NOTE_TIMING sqlite={t_sqlite:.2f}s note_id={note_id} (analysis backgrounded)")
+    return NoteResponse(id=note_id, created_at=created_at, raw_text=text, tags=[], summary=placeholder_summary, pinned=False, archived=False, audio_url=None)
 
-    print(f"NOTE_TIMING analyze={t_analyze:.2f}s sqlite={t_sqlite:.2f}s note_id={note_id}")
-    return NoteResponse(id=note_id, created_at=created_at, raw_text=text, tags=tags, summary=summary, pinned=False, archived=False, audio_url=None)
+
+def _background_analyze_and_index(note_id: str, text: str, created_at: str,
+                                  client_timezone: str = None, client_local_time: str = None):
+    """Claude-Haiku tagging, update the note row with real tags/summary, vectorize in
+    Chroma, and schedule a reminder if the text is one. All off the user-facing path."""
+    tags: list = []
+    summary = ""
+    analysis = None
+    t0 = time.perf_counter()
+    try:
+        analysis = claude_service.tag_note(text, client_timezone, client_local_time)
+        tags = analysis["tags"]
+        summary = analysis["summary"]
+        db = get_db()
+        db.execute("UPDATE notes SET tags = ?, summary = ? WHERE id = ?",
+                   (json.dumps(tags), summary, note_id))
+        db.commit()
+        db.close()
+        print(f"NOTE_TIMING analyze_bg={time.perf_counter()-t0:.2f}s note_id={note_id}")
+    except Exception as e:
+        print(f"NOTE_ANALYZE_FAILURE note_id={note_id} error={e} \u2014 note kept with placeholder summary")
+
+    # Vectorize with whatever tags/summary we have (placeholder if analysis failed).
+    _background_index_note(note_id, text, created_at, tags, summary)
+
+    # Schedule a reminder if the analysis flagged one.
+    try:
+        if analysis and analysis.get("is_reminder") and analysis.get("reminder_details"):
+            rem_details = analysis["reminder_details"]
+            title = rem_details.get("title") or text[:80]
+            remind_at = rem_details.get("remind_at")
+            if remind_at:
+                reminder_id = str(uuid.uuid4())
+                db = get_db()
+                db.execute(
+                    "INSERT INTO reminders (id, title, remind_at, created_at) VALUES (?, ?, ?, ?)",
+                    (reminder_id, title, remind_at, created_at),
+                )
+                db.commit()
+                db.close()
+                threading.Thread(target=_background_calendar_sync, args=(reminder_id, title, remind_at), daemon=True).start()
+    except Exception as e:
+        print(f"REMINDER_SCHEDULE_FAILURE note_id={note_id} error={e}")
 
 
 @router.post("/capture", response_model=NoteResponse, dependencies=[Depends(verify_key)])
