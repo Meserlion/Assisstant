@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -8,7 +10,16 @@ from routes.calendar import router as calendar_router
 from routes.push import router as push_router
 from services.reminder_scheduler import start_scheduler, stop_scheduler
 
-app = FastAPI(title="Assistant API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    start_scheduler()
+    yield
+    stop_scheduler()
+
+
+app = FastAPI(title="Assistant API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -16,17 +27,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.on_event("startup")
-def startup():
-    init_db()
-    start_scheduler()
-
-
-@app.on_event("shutdown")
-def shutdown():
-    stop_scheduler()
 
 
 app.include_router(notes_router)

@@ -290,7 +290,7 @@ the toggle changing.
 
 ---
 
-### [ ] TD8. Replace the deprecated FastAPI startup hooks
+### [x] TD8. Replace the deprecated FastAPI startup hooks
 
 **File:** `backend/main.py` (lines 21 and 27)
 
