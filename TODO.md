@@ -354,7 +354,7 @@ other file calls them. If something does, stop and report it.
 
 ---
 
-### [ ] TD10. De-duplicate the two RAG query handlers
+### [x] TD10. De-duplicate the two RAG query handlers
 
 **File:** `backend/routes/notes.py` (`query_notes` ~line 467 and `query_notes_stream` ~line 517)
 

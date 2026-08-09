@@ -425,13 +425,13 @@ async def transcribe_audio(audio: UploadFile = File(...)):
     return {"text": text}
 
 
-@router.post("/query", response_model=QueryResponse, dependencies=[Depends(verify_key)])
-def query_notes(req: QueryRequest):
+def _build_query_context(req: QueryRequest) -> tuple[list[NoteResponse], str]:
+    """Returns (sources, schedule_context) shared by the plain and streaming query routes."""
     # Rewrite the search query for vector retrieval using history if present
     search_query = claude_service.rewrite_query(req.text, req.history)
     matches = chroma_service.search_notes(search_query)
 
-    # 1. Fetch upcoming schedule context (next 7 days) from local notes DB (synced calendar events)
+    # Fetch upcoming schedule context (next 7 days) from local notes DB (synced calendar events)
     from datetime import datetime, timezone, timedelta
     now_utc = datetime.now(timezone.utc)
     limit_utc = (now_utc + timedelta(days=7)).isoformat()
@@ -442,53 +442,6 @@ def query_notes(req: QueryRequest):
         (now_utc.isoformat(), limit_utc)
     ).fetchall()
 
-    schedule_context = ""
-    if calendar_rows:
-        schedule_context = "\nUpcoming Calendar Schedule (Next 7 Days):\n" + "\n".join(
-            f"- [{r['created_at']}] {r['raw_text']}" for r in calendar_rows
-        )
-
-    if not matches:
-        db.close()
-        # Answer using schedule context even if vector search matches are empty
-        answer = claude_service.answer_query(req.text, [], req.history, schedule_context)
-        return QueryResponse(query=req.text, answer=answer, sources=[])
-
-    ids = [m["id"] for m in matches]
-    placeholders = ",".join("?" * len(ids))
-    rows = db.execute(f"SELECT * FROM notes WHERE id IN ({placeholders})", ids).fetchall()
-    db.close()
-
-    row_map = {r["id"]: r for r in rows}
-    sources = [
-        NoteResponse(
-            id=m["id"],
-            created_at=m["created_at"],
-            raw_text=m["raw_text"],
-            tags=json.loads(row_map[m["id"]]["tags"]) if m["id"] in row_map else [],
-            summary=row_map[m["id"]]["summary"] if m["id"] in row_map else "",
-        )
-        for m in matches if m["id"] in row_map
-    ]
-
-    answer = claude_service.answer_query(req.text, [s.model_dump() for s in sources], req.history, schedule_context)
-    return QueryResponse(query=req.text, answer=answer, sources=sources)
-
-
-@router.post("/query/stream", dependencies=[Depends(verify_key)])
-def query_notes_stream(req: QueryRequest):
-    search_query = claude_service.rewrite_query(req.text, req.history)
-    matches = chroma_service.search_notes(search_query)
-
-    from datetime import datetime, timezone, timedelta
-    now_utc = datetime.now(timezone.utc)
-    limit_utc = (now_utc + timedelta(days=7)).isoformat()
-
-    db = get_db()
-    calendar_rows = db.execute(
-        "SELECT created_at, raw_text FROM notes WHERE tags LIKE '%\"calendar\"%' AND created_at >= ? AND created_at <= ? ORDER BY created_at ASC",
-        (now_utc.isoformat(), limit_utc)
-    ).fetchall()
     schedule_context = ""
     if calendar_rows:
         schedule_context = "\nUpcoming Calendar Schedule (Next 7 Days):\n" + "\n".join(
@@ -513,6 +466,19 @@ def query_notes_stream(req: QueryRequest):
         ]
     db.close()
 
+    return sources, schedule_context
+
+
+@router.post("/query", response_model=QueryResponse, dependencies=[Depends(verify_key)])
+def query_notes(req: QueryRequest):
+    sources, schedule_context = _build_query_context(req)
+    answer = claude_service.answer_query(req.text, [s.model_dump() for s in sources], req.history, schedule_context)
+    return QueryResponse(query=req.text, answer=answer, sources=sources)
+
+
+@router.post("/query/stream", dependencies=[Depends(verify_key)])
+def query_notes_stream(req: QueryRequest):
+    sources, schedule_context = _build_query_context(req)
     sources_data = [s.model_dump() for s in sources]
 
     def generate():
