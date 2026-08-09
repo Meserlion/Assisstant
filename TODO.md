@@ -378,7 +378,7 @@ Then have both routes call it. `query_notes` uses the result for `claude_service
 
 ---
 
-### [ ] TD11. Add a minimal backend test suite and run it in CI
+### [x] TD11. Add a minimal backend test suite and run it in CI
 
 **Why:** There are currently zero tests, and `main` receives automated commits. Two of those commits
 shipped truncated files (`backend/database.py`, `README.md`) that no check caught.

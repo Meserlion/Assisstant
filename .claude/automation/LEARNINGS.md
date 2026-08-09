@@ -23,3 +23,11 @@ anything specific to one issue — that belongs in the issue comment.
 - 2026-08-08 — Even after `npx playwright install chromium` completes, the sandbox chromium fails to launch: `libXdamage.so.1: cannot open shared object file`, and the missing libs cannot be apt-installed (no root / no-new-privileges). So the smoke suite still cannot run in the sandbox; rely on the CI build-check gate. Lint + build both pass locally for TD7.
 - 2026-08-09 TD8: implemented from a fresh /tmp clone of origin/main; the mounted D: checkout showed a whole-repo CRLF diff (14235 ins == 14235 del) and was 15 commits behind, so it was unusable for committing. No open issues; fell back to backlog.
 - 2026-08-09 TD9: removed dead research-note feature (route + service fn + client fn). Confirmed no other callers via grep. Lint + build pass locally; smoke suite still unrunnable in sandbox (libXdamage.so.1 launch failure) — relied on CI build-check gate. No open issues; fell back to backlog. Worked from a fresh /tmp clone (mounted checkout showed whole-repo CRLF diff, 16 behind).
+- 2026-08-09 — Pinned FastAPI 0.115.5's `APIKeyHeader(auto_error=True)` returns **403** for a
+  *missing* header, while a present-but-wrong key reaches `verify_key` and returns 401. TD11's spec
+  said "no key → 401"; the backend test asserts `status_code in (401, 403)` for the missing-key case
+  so it matches actual behaviour and survives a FastAPI bump. Newer FastAPI (>=0.11x) returns 401 here.
+- 2026-08-09 — Backend tests import `main`, which pulls `services` (anthropic client is constructed at
+  import). Set `API_KEY`/`ANTHROPIC_API_KEY`/`SQLITE_DB_PATH` env vars *before* importing, and use
+  `TestClient(app)` WITHOUT a `with` block so the lifespan (reminder scheduler + calendar sync) never
+  starts; call `init_db()` in a fixture instead.
