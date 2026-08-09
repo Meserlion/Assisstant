@@ -290,27 +290,3 @@ def describe_image(image_bytes: bytes, mime_type: str) -> str:
         }]
     )
     return response.content[0].text
-
-def research_note(text: str) -> str:
-    """Return 2-3 brief relevant facts or context about the topic in a note."""
-    prompt = (
-        "You are a concise research assistant. Read the following personal note and identify its main topic.\n"
-        "Then provide 2-3 brief, useful facts or context about that topic that would genuinely enrich it.\n"
-        "Rules:\n"
-        "- Each fact must be concrete and informative, not generic.\n"
-        "- Keep each fact to one short sentence.\n"
-        "- Format as a simple bullet list using `- ` prefix.\n"
-        "- Do NOT restate what the note already says.\n"
-        "- If the note is a to-do list or reminder with no clear researchable topic, respond with exactly: NO_RESEARCH\n\n"
-        f"Note:\n{text}\n\n"
-        "Research:"
-    )
-    response = client.messages.create(
-        model="claude-haiku-4-5",
-        max_tokens=300,
-        messages=[{"role": "user", "content": prompt}]
-    )
-    result = response.content[0].text.strip()
-    if result == "NO_RESEARCH":
-        return ""
-    return result

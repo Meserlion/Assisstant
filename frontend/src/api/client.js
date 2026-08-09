@@ -195,10 +195,6 @@ export async function setNoteColor(id, color) {
   })
 }
 
-export async function researchNote(id) {
-  return request('/notes/' + id + '/research', { method: 'POST' })
-}
-
 export async function mergeNoteGroup(noteIds, topic, summary) {
   return request('/notes/merge-group', {
     method: 'POST',

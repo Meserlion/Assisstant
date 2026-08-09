@@ -335,7 +335,7 @@ from contextlib import asynccontextmanager
 
 ---
 
-### [ ] TD9. Remove the dead "research note" feature
+### [x] TD9. Remove the dead "research note" feature
 
 **Why:** The UI button was removed in commit `d161fe8`, but the endpoint and client function are
 still shipped. Dead code that still costs an Anthropic API call if anyone hits the route.

@@ -396,51 +396,6 @@ def update_note(note_id: str, req: NoteUpdateRequest):
     return _row_to_note(updated_row)
 
 
-
-@router.post("/{note_id}/research", response_model=NoteResponse, dependencies=[Depends(verify_key)])
-def research_note(note_id: str):
-    db = get_db()
-    row = db.execute("SELECT * FROM notes WHERE id = ?", (note_id,)).fetchone()
-    if not row:
-        db.close()
-        raise HTTPException(status_code=404, detail="Note not found")
-
-    research = claude_service.research_note(row["raw_text"])
-    if not research:
-        db.close()
-        return NoteResponse(
-            id=note_id, created_at=row["created_at"], raw_text=row["raw_text"],
-            tags=json.loads(row["tags"]), summary=row["summary"],
-            pinned=bool(row["pinned"]), archived=bool(row["archived"]),
-            audio_url=_audio_url(note_id) if row["audio_path"] else None
-        )
-
-    new_text = row["raw_text"].rstrip() + "\n\n**Research:**\n" + research
-    analysis = claude_service.tag_note(new_text)
-    tags = analysis["tags"]
-    summary = analysis["summary"]
-
-    db.execute(
-        "UPDATE notes SET raw_text = ?, tags = ?, summary = ? WHERE id = ?",
-        (new_text, json.dumps(tags), summary, note_id)
-    )
-    db.commit()
-    db.close()
-
-    try:
-        chroma_service.delete_note(note_id)
-        chroma_service.add_note(note_id, new_text, {"created_at": row["created_at"], "tags": json.dumps(tags), "summary": summary})
-    except Exception as e:
-        print(f"CHROMA_SYNC_FAILURE note_id={note_id} error={e} — note saved but search index is stale")
-
-    return NoteResponse(
-        id=note_id, created_at=row["created_at"], raw_text=new_text,
-        tags=tags, summary=summary,
-        pinned=bool(row["pinned"]), archived=bool(row["archived"]),
-        audio_url=_audio_url(note_id) if row["audio_path"] else None
-    )
-
-
 class RewriteRequest(BaseModel):
     text: str
     instruction: str
