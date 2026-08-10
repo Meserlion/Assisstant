@@ -418,7 +418,7 @@ Point the tests at a temporary SQLite file via the `SQLITE_DB_PATH` env var so t
 
 ---
 
-### [ ] TD12. Ignore local Claude settings
+### [x] TD12. Ignore local Claude settings
 
 **File:** `.gitignore`
 
