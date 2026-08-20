@@ -119,6 +119,33 @@ body::after {
   color: #f9a8d4;
 }
 
+.notebook-select {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-secondary);
+  height: 28px;
+  max-width: 150px;
+  border-radius: 14px;
+  font-size: 0.78rem;
+  font-family: inherit;
+  padding: 0 10px;
+  cursor: pointer;
+  flex-shrink: 1;
+  transition: all 0.15s;
+}
+
+.notebook-select:hover,
+.notebook-select:focus {
+  border-color: rgba(244, 114, 182, 0.5);
+  color: #f9a8d4;
+  outline: none;
+}
+
+.notebook-select option {
+  background: #161c2d;
+  color: var(--text-primary);
+}
+
 .report-form {
   display: flex;
   flex-direction: column;

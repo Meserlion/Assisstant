@@ -31,3 +31,9 @@ anything specific to one issue — that belongs in the issue comment.
   import). Set `API_KEY`/`ANTHROPIC_API_KEY`/`SQLITE_DB_PATH` env vars *before* importing, and use
   `TestClient(app)` WITHOUT a `with` block so the lifespan (reminder scheduler + calendar sync) never
   starts; call `init_db()` in a fixture instead.
+- 2026-08-20 — The Playwright Chromium binary (~184 MiB, rev 1234) cannot be installed in the Cowork
+  sandbox: bash calls are capped at ~120s with no resume, the download restarts each attempt, and
+  cdn.playwright.dev 307-redirects to playwright.download.prss.microsoft.com which the sandbox network
+  blocks (HTTP 400 "GatewayException"). So `npm run test:smoke` can't run here. Mitigation: rely on the
+  CI `build-check` job, which runs the same smoke gate and which `deploy` depends on — a broken shell
+  cannot deploy regardless. Still run `npm run lint` and `npm run build` locally (those work).

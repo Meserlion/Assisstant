@@ -46,29 +46,37 @@ export function getClientTimezone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone
 }
 
-export async function captureImageNote(file) {
+export async function captureImageNote(file, notebook) {
   const form = new FormData()
   form.append('image', file)
   form.append('client_timezone', getClientTimezone())
   form.append('client_local_time', getLocalIsoTime())
+  form.append('notebook', notebook || 'default')
   return request('/notes/image', { method: 'POST', body: form })
 }
 
-export async function captureNote(audioBlob) {
+export async function captureNote(audioBlob, notebook) {
   const type = audioBlob.type || ''
   const ext = type.includes('mp4') ? 'mp4' : type.includes('ogg') ? 'ogg' : 'webm'
   const form = new FormData()
   form.append('audio', audioBlob, 'recording.' + ext)
   form.append('client_timezone', getClientTimezone())
   form.append('client_local_time', getLocalIsoTime())
+  form.append('notebook', notebook || 'default')
   return request('/notes/capture', { method: 'POST', body: form })
 }
 
-export async function listNotes(limit, offset, archived) {
+export async function listNotes(limit, offset, archived, notebook) {
   limit = limit || 50
   offset = offset || 0
   archived = archived || false
-  return request('/notes/?limit=' + limit + '&offset=' + offset + '&archived=' + archived)
+  let path = '/notes/?limit=' + limit + '&offset=' + offset + '&archived=' + archived
+  if (notebook) path += '&notebook=' + encodeURIComponent(notebook)
+  return request(path)
+}
+
+export async function listNotebooks() {
+  return request('/notes/notebooks')
 }
 
 export async function deleteNote(id) {
@@ -83,11 +91,11 @@ export async function updateNote(id, text) {
   })
 }
 
-export async function createTextNote(text) {
+export async function createTextNote(text, notebook) {
   return request('/notes/text', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, client_timezone: getClientTimezone(), client_local_time: getLocalIsoTime() }),
+    body: JSON.stringify({ text, client_timezone: getClientTimezone(), client_local_time: getLocalIsoTime(), notebook: notebook || 'default' }),
   })
 }
 

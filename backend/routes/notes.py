@@ -30,6 +30,7 @@ class NoteResponse(BaseModel):
     pinned: bool = False
     archived: bool = False
     color: str | None = None
+    notebook: str = "default"
     audio_url: str | None = None
 
 
@@ -100,7 +101,7 @@ def _background_calendar_sync(reminder_id: str, title: str, remind_at: str):
         print(f"Failed to sync auto-reminder to Google Calendar: {e}")
 
 
-def _save_note_from_text(text: str, client_timezone: str = None, client_local_time: str = None) -> NoteResponse:
+def _save_note_from_text(text: str, client_timezone: str = None, client_local_time: str = None, notebook: str = "default") -> NoteResponse:
     """Shared helper: persist the note to SQLite immediately, then analyse (tags/summary/
     reminder) and vectorize entirely in a background thread. Tagging used to block the
     response on a Claude-Haiku round-trip; moving it off the critical path makes note
@@ -114,8 +115,8 @@ def _save_note_from_text(text: str, client_timezone: str = None, client_local_ti
     t1 = time.perf_counter()
     db = get_db()
     db.execute(
-        "INSERT INTO notes (id, created_at, raw_text, tags, summary) VALUES (?, ?, ?, ?, ?)",
-        (note_id, created_at, text, json.dumps([]), placeholder_summary),
+        "INSERT INTO notes (id, created_at, raw_text, tags, summary, notebook) VALUES (?, ?, ?, ?, ?, ?)",
+        (note_id, created_at, text, json.dumps([]), placeholder_summary, notebook),
     )
     db.commit()
     db.close()
@@ -129,7 +130,7 @@ def _save_note_from_text(text: str, client_timezone: str = None, client_local_ti
     ).start()
 
     print(f"NOTE_TIMING sqlite={t_sqlite:.2f}s note_id={note_id} (analysis backgrounded)")
-    return NoteResponse(id=note_id, created_at=created_at, raw_text=text, tags=[], summary=placeholder_summary, pinned=False, archived=False, audio_url=None)
+    return NoteResponse(id=note_id, created_at=created_at, raw_text=text, tags=[], summary=placeholder_summary, pinned=False, archived=False, notebook=notebook, audio_url=None)
 
 
 def _background_analyze_and_index(note_id: str, text: str, created_at: str,
@@ -180,7 +181,8 @@ def _background_analyze_and_index(note_id: str, text: str, created_at: str,
 async def capture_note(
     audio: UploadFile = File(...),
     client_timezone: str = Form(None),
-    client_local_time: str = Form(None)
+    client_local_time: str = Form(None),
+    notebook: str = Form("default")
 ):
     t_start = time.perf_counter()
     suffix = os.path.splitext(audio.filename or "audio.webm")[1] or ".webm"
@@ -197,7 +199,7 @@ async def capture_note(
         os.unlink(tmp_path)
     t_transcribe = time.perf_counter() - t0
 
-    note = await asyncio.to_thread(_save_note_from_text, text, client_timezone, client_local_time)
+    note = await asyncio.to_thread(_save_note_from_text, text, client_timezone, client_local_time, notebook)
 
     # Persist audio for playback — use absolute path so FileResponse works regardless of CWD
     audio_dir = os.path.abspath(os.path.join(os.path.dirname(settings.sqlite_db_path), "audio"))
@@ -245,7 +247,8 @@ def _background_remux(audio_path: str, suffix: str):
 async def capture_image_note(
     image: UploadFile = File(...),
     client_timezone: str = Form(None),
-    client_local_time: str = Form(None)
+    client_local_time: str = Form(None),
+    notebook: str = Form("default")
 ):
     """Accept an image upload, describe it with Claude Vision, and save as a text note."""
     image_bytes = await image.read()
@@ -261,20 +264,21 @@ async def capture_image_note(
         text = claude_service.describe_image(image_bytes, mime_type)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Image analysis failed: {exc}")
-    return await asyncio.to_thread(_save_note_from_text, text, client_timezone, client_local_time)
+    return await asyncio.to_thread(_save_note_from_text, text, client_timezone, client_local_time, notebook)
 
 
 class TextNoteRequest(BaseModel):
     text: str
     client_timezone: str = None
     client_local_time: str = None
+    notebook: str = "default"
 
 
 @router.post("/text", response_model=NoteResponse, dependencies=[Depends(verify_key)])
 def create_text_note(req: TextNoteRequest):
     if not req.text.strip():
         raise HTTPException(status_code=400, detail="Note text cannot be empty")
-    return _save_note_from_text(req.text.strip(), req.client_timezone, req.client_local_time)
+    return _save_note_from_text(req.text.strip(), req.client_timezone, req.client_local_time, req.notebook)
 
 
 def _row_to_note(r) -> NoteResponse:
@@ -287,19 +291,43 @@ def _row_to_note(r) -> NoteResponse:
         pinned=bool(r["pinned"]),
         archived=bool(r["archived"]),
         color=(r["color"] if "color" in r.keys() else None),
+        notebook=(r["notebook"] if "notebook" in r.keys() else "default"),
         audio_url=_audio_url(r["id"]) if r["audio_path"] else None,
     )
 
 
 @router.get("/", response_model=list[NoteResponse], dependencies=[Depends(verify_key)])
-def list_notes(limit: int = 50, offset: int = 0, archived: bool = False):
+def list_notes(limit: int = 50, offset: int = 0, archived: bool = False, notebook: str | None = None):
     db = get_db()
+    # notebook=None means "all notebooks"; a value narrows the feed to one collection.
     rows = db.execute(
-        "SELECT * FROM notes WHERE tags NOT LIKE '%\"calendar\"%' AND archived = ? ORDER BY pinned DESC, created_at DESC LIMIT ? OFFSET ?",
-        (int(archived), limit, offset)
+        "SELECT * FROM notes WHERE tags NOT LIKE '%\"calendar\"%' AND archived = ? "
+        "AND (? IS NULL OR notebook = ?) ORDER BY pinned DESC, created_at DESC LIMIT ? OFFSET ?",
+        (int(archived), notebook, notebook, limit, offset)
     ).fetchall()
     db.close()
     return [_row_to_note(r) for r in rows]
+
+
+class NotebookInfo(BaseModel):
+    name: str
+    count: int
+
+
+@router.get("/notebooks", response_model=list[NotebookInfo], dependencies=[Depends(verify_key)])
+def list_notebooks():
+    """Distinct notebooks with their active (non-archived, non-calendar) note counts.
+    'default' is always present so the selector never starts empty."""
+    db = get_db()
+    rows = db.execute(
+        "SELECT notebook, COUNT(*) AS c FROM notes "
+        "WHERE tags NOT LIKE '%\"calendar\"%' AND archived = 0 "
+        "GROUP BY notebook"
+    ).fetchall()
+    db.close()
+    counts = {(r["notebook"] or "default"): r["c"] for r in rows}
+    counts.setdefault("default", 0)
+    return [NotebookInfo(name=name, count=counts[name]) for name in sorted(counts)]
 
 
 @router.delete("/{note_id}", dependencies=[Depends(verify_key)])

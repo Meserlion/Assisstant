@@ -74,6 +74,34 @@ def test_audio_without_token_returns_401(client):
     assert resp.status_code == 401
 
 
+def test_notebooks_endpoint_returns_default(client):
+    # The selector must never start empty, so 'default' is always present.
+    resp = client.get("/notes/notebooks", headers=KEY_HEADER)
+    assert resp.status_code == 200
+    names = {nb["name"] for nb in resp.json()}
+    assert "default" in names
+
+
+def test_note_notebook_scoping(client):
+    # A note created in a named notebook is returned when filtering by it and
+    # excluded when filtering by another notebook.
+    created = client.post(
+        "/notes/text",
+        headers=KEY_HEADER,
+        json={"text": "scoped note", "notebook": "Work"},
+    )
+    assert created.status_code == 200
+    assert created.json()["notebook"] == "Work"
+
+    in_work = client.get("/notes/?notebook=Work", headers=KEY_HEADER)
+    assert in_work.status_code == 200
+    assert any(n["notebook"] == "Work" for n in in_work.json())
+
+    in_other = client.get("/notes/?notebook=__none__", headers=KEY_HEADER)
+    assert in_other.status_code == 200
+    assert all(n["notebook"] != "Work" for n in in_other.json())
+
+
 def test_init_db_creates_feed_index():
     init_db()
     conn = get_db()

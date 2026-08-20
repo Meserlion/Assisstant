@@ -436,7 +436,7 @@ Point the tests at a temporary SQLite file via the `SQLITE_DB_PATH` env var so t
 
 ## Feature Backlog
 
-### [ ] F1. Notebooks / collections
+### [x] F1. Notebooks / collections
 Group notes into separate spaces (Work, Personal, Ideas). Backend: add a `notebook` column; frontend: notebook selector in the header, filter notes by active notebook.
 
 ### [ ] F2. Daily digest push notification

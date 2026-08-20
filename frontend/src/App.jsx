@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { hasApiKey, captureNote, captureImageNote, createTextNote, listNotes, deleteNote, transcribeAudio, pinNote, archiveNote } from './api/client'
+import { hasApiKey, captureNote, captureImageNote, createTextNote, listNotes, listNotebooks, deleteNote, transcribeAudio, pinNote, archiveNote } from './api/client'
 import { useRecorder } from './hooks/useRecorder'
 import { ApiKeySetup } from './components/ApiKeySetup'
 import { NoteCard } from './components/NoteCard'
@@ -32,11 +32,14 @@ export default function App() {
   const [showArchived, setShowArchived] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
+  const [notebooks, setNotebooks] = useState([])
+  // '' means "All notebooks". A concrete name scopes the feed and new notes to that collection.
+  const [activeNotebook, setActiveNotebook] = useState('')
 
-  const fetchNotes = useCallback(async (archived = false) => {
+  const fetchNotes = useCallback(async (archived = false, notebook = null) => {
     setLoading(true)
     try {
-      const data = await listNotes(50, 0, archived)
+      const data = await listNotes(50, 0, archived, notebook)
       setNotes(data)
     } catch (e) {
       setError(e.message)
@@ -45,20 +48,38 @@ export default function App() {
     }
   }, [])
 
+  const fetchNotebooks = useCallback(async () => {
+    try {
+      const data = await listNotebooks()
+      setNotebooks(data)
+    } catch (e) {
+      // No backend (or an error) should never crash the shell; the selector just stays as-is.
+      void e
+    }
+  }, [])
+
   useEffect(() => {
     if (ready && (tab === 'notes' || tab === 'consolidate')) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      fetchNotes(showArchived)
+      fetchNotes(showArchived, activeNotebook)
     }
-  }, [ready, tab, showArchived, fetchNotes])
+  }, [ready, tab, showArchived, activeNotebook, fetchNotes])
+
+  useEffect(() => {
+    if (ready && (tab === 'notes' || tab === 'consolidate')) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchNotebooks()
+    }
+  }, [ready, tab, fetchNotebooks])
 
   async function handleStop() {
     setCapturing(true)
     setError(null)
     try {
       const blob = await stop()
-      await captureNote(blob)
-      await fetchNotes(showArchived)
+      await captureNote(blob, activeNotebook || 'default')
+      await fetchNotes(showArchived, activeNotebook)
+      fetchNotebooks()
     } catch (e) {
       setError(e.message)
     } finally {
@@ -72,8 +93,9 @@ export default function App() {
     setCapturing(true)
     setError(null)
     try {
-      await captureImageNote(file)
-      await fetchNotes(showArchived)
+      await captureImageNote(file, activeNotebook || 'default')
+      await fetchNotes(showArchived, activeNotebook)
+      fetchNotebooks()
     } catch (err) {
       setError(err.message)
     } finally {
@@ -140,7 +162,7 @@ export default function App() {
       await archiveNote(id, true)
     } catch (e) {
       setError(e.message)
-      fetchNotes(showArchived)
+      fetchNotes(showArchived, activeNotebook)
     }
   }
 
@@ -150,7 +172,7 @@ export default function App() {
       await archiveNote(id, false)
     } catch (e) {
       setError(e.message)
-      fetchNotes(showArchived)
+      fetchNotes(showArchived, activeNotebook)
     }
   }
 
@@ -175,9 +197,10 @@ export default function App() {
     setCapturing(true)
     setError(null)
     try {
-      const note = await createTextNote(textInput.trim())
+      const note = await createTextNote(textInput.trim(), activeNotebook || 'default')
       setNotes((prev) => [note, ...prev])
       setTextInput('')
+      fetchNotebooks()
     } catch (err) {
       setError(err.message)
     } finally {
@@ -215,6 +238,24 @@ export default function App() {
     setReportBody('')
   }
 
+  function handleNotebookChange(e) {
+    const val = e.target.value
+    if (val === '__new__') {
+      const name = (window.prompt('New notebook name') || '').trim()
+      if (name) {
+        setNotebooks((prev) => prev.some((n) => n.name === name) ? prev : [...prev, { name, count: 0 }])
+        setActiveNotebook(name)
+      }
+      return
+    }
+    setActiveNotebook(val)
+  }
+
+  // Always show the active notebook as an option, even before its first note exists on the server.
+  const notebookOptions = activeNotebook && !notebooks.some((n) => n.name === activeNotebook)
+    ? [...notebooks, { name: activeNotebook, count: 0 }]
+    : notebooks
+
   if (!ready) return <ApiKeySetup onDone={() => setReady(true)} />
 
   const filteredNotes = notes.filter((n) => {
@@ -236,6 +277,21 @@ export default function App() {
         <div className="header-actions">
           {tab === 'notes' && (
             <>
+              <select
+                className="notebook-select"
+                value={activeNotebook}
+                onChange={handleNotebookChange}
+                title="Notebook"
+                aria-label="Select notebook"
+              >
+                <option value="">All notebooks</option>
+                {notebookOptions.map((nb) => (
+                  <option key={nb.name} value={nb.name}>
+                    {nb.name}{nb.count ? ` (${nb.count})` : ''}
+                  </option>
+                ))}
+                <option value="__new__">+ New notebook…</option>
+              </select>
               <button
                 className={`header-btn${searchOpen ? ' active' : ''}`}
                 onClick={() => { if (searchOpen) setSearchQuery(''); setSearchOpen((v) => !v) }}
@@ -408,7 +464,7 @@ export default function App() {
 
         {tab === 'ask' && <QueryPanel />}
         {tab === 'calendar' && <CalendarTab />}
-        {tab === 'consolidate' && <ConsolidateTab notes={notes} onMergeSuccess={fetchNotes} />}
+        {tab === 'consolidate' && <ConsolidateTab notes={notes} onMergeSuccess={() => { fetchNotes(showArchived, activeNotebook); fetchNotebooks() }} />}
       </main>
 
       {undoToast && (
