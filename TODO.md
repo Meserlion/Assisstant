@@ -434,7 +434,7 @@ Point the tests at a temporary SQLite file via the `SQLITE_DB_PATH` env var so t
 
 ---
 
-### [ ] TD13. Stop recomputing tag counts once per rendered note
+### [x] TD13. Stop recomputing tag counts once per rendered note
 
 **File:** `frontend/src/App.jsx` (~line 370)
 

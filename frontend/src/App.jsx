@@ -265,6 +265,8 @@ export default function App() {
     return matchesTag && matchesSearch
   })
 
+  const tagCounts = notes.reduce((acc, n) => { n.tags.forEach(t => { acc[t] = (acc[t] || 0) + 1 }); return acc }, {})
+
   return (
     <div className="app">
       <header>
@@ -367,7 +369,7 @@ export default function App() {
                   onSplit={() => setSplittingNote(note)}
                   onTagClick={(tag) => setActiveTag(tag === activeTag ? null : tag)}
                   activeTag={activeTag}
-                  tagCounts={notes.reduce((acc, n) => { n.tags.forEach(t => { acc[t] = (acc[t] || 0) + 1 }); return acc }, {})}
+                  tagCounts={tagCounts}
                   selected={selectedIds.has(note.id)}
                   onSelect={handleToggleSelect}
                   onPin={handlePin}
