@@ -434,6 +434,56 @@ Point the tests at a temporary SQLite file via the `SQLITE_DB_PATH` env var so t
 
 ---
 
+### [ ] TD13. Stop recomputing tag counts once per rendered note
+
+**File:** `frontend/src/App.jsx` (~line 370)
+
+**Why:** The notes list builds `tagCounts` with a full `notes.reduce(...)` pass **inside** the
+`.map()` that renders each `NoteCard` — so for N notes it re-scans all N notes' tags N times per
+render (O(n²)). It's invisible at today's note counts but re-runs on every keystroke in search and
+will get slower as the list grows. `NoteCard` only reads `tagCounts` to badge a tag's count
+(`frontend/src/components/NoteCard.jsx` line 265) — the same object works fine computed once.
+
+**Find (in the component body, before the `return (` that renders the JSX — currently right after
+`filteredNotes` is computed):**
+```javascript
+  const filteredNotes = notes.filter((n) => {
+    const matchesTag = !activeTag || n.tags.includes(activeTag)
+    const q = searchQuery.trim().toLowerCase()
+    const matchesSearch = !q || n.raw_text.toLowerCase().includes(q) || n.summary.toLowerCase().includes(q)
+    return matchesTag && matchesSearch
+  })
+```
+**Replace with:**
+```javascript
+  const filteredNotes = notes.filter((n) => {
+    const matchesTag = !activeTag || n.tags.includes(activeTag)
+    const q = searchQuery.trim().toLowerCase()
+    const matchesSearch = !q || n.raw_text.toLowerCase().includes(q) || n.summary.toLowerCase().includes(q)
+    return matchesTag && matchesSearch
+  })
+
+  const tagCounts = notes.reduce((acc, n) => { n.tags.forEach(t => { acc[t] = (acc[t] || 0) + 1 }); return acc }, {})
+```
+
+**Then find (the `tagCounts` prop passed to each `NoteCard`, inside the `filteredNotes.map(...)`):**
+```javascript
+                  tagCounts={notes.reduce((acc, n) => { n.tags.forEach(t => { acc[t] = (acc[t] || 0) + 1 }); return acc }, {})}
+```
+**Replace with:**
+```javascript
+                  tagCounts={tagCounts}
+```
+
+Change nothing else — same shape of object, same values, just computed once per render instead of
+once per note.
+
+**Verify:** `npm run lint` (zero errors), `npm run build && npm run test:smoke`. Open the Notes tab,
+confirm tag badges still show the same counts as before (a tag used on 3 notes still shows a small
+`3`), and that clicking a tag still filters correctly.
+
+---
+
 ## Feature Backlog
 
 ### [x] F1. Notebooks / collections
